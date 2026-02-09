@@ -50,8 +50,6 @@ Software Engineering Manager with 10+ years in professional software development
 - Acted as primary engineering point of contact for product, service, and business stakeholders.
 - Documented existing development processes and incrementally improved team execution and predictability.
 
----
-
 ### KopiusTech — Remote  
 **Senior Full-Stack Developer (Technical Lead responsibilities)**  
 *Apr 2023 – Aug 2024*
@@ -61,8 +59,6 @@ Software Engineering Manager with 10+ years in professional software development
 - Worked closely with Product Owners to clarify requirements and anticipate technical risks.
 - Produced extensive technical and onboarding documentation to reduce team dependency on tribal knowledge.
 - Participated in technical interviews and internal training initiatives.
-
----
 
 ### Svitla — Remote  
 **Senior .NET Backend Developer**  
@@ -93,7 +89,6 @@ Complejo Ed. Dr. Francisco de Gurruchaga - Argentina
 ---
 
 ## LANGUAGES
-
 - Spanish (Native)  
 - English (Bilingual)  
 - Japanese (Basic)  

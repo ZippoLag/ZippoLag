@@ -48,8 +48,6 @@ Senior Technical Program Manager with a strong software engineering background a
 - Acted as liaison between engineering teams, product, service, and business units.
 - Identified process gaps and proposed incremental improvements to increase predictability and transparency.
 
----
-
 ### KopiusTech — Remote  
 **Senior Engineer (Program Coordination Focus)**  
 *Apr 2023 – Aug 2024*
@@ -58,8 +56,6 @@ Senior Technical Program Manager with a strong software engineering background a
 - Helped identify requirement gaps early and mitigated delivery risks through documentation and alignment.
 - Ensured smooth transitions between deployment versions across parallel initiatives.
 - Supported onboarding and knowledge transfer to reduce delivery bottlenecks.
-
----
 
 ### ThinkerSys — Argentina / Remote  
 **Senior Software Developer (Program-scale Projects)**  
