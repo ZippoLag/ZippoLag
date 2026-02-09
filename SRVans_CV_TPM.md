@@ -1,8 +1,8 @@
 # Sebastián Raúl Vansteenkiste  
 Barcelona, Spain | EU Work Authorization  
-[LinkedIn: linkedin.com/in/srvans](https://www.linkedin.com/in/srvans/)
-[Email: sebavanten@gmail.com](mailto:sebavanten@gmail.com)
-[Book an interview with me](https://calendar.app.google/D6TQbH3ZZeuuNsP76) | [Read my Cover Letter](https://raw.githubusercontent.com/ZippoLag/ZippoLag/refs/heads/main/SRVans_CoverLetter.pdf)
+- [LinkedIn: linkedin.com/in/srvans](https://www.linkedin.com/in/srvans/)
+- [Email: sebavanten@gmail.com](mailto:sebavanten@gmail.com)
+- [Book an interview with me](https://calendar.app.google/D6TQbH3ZZeuuNsP76) | [Read my Cover Letter](https://raw.githubusercontent.com/ZippoLag/ZippoLag/refs/heads/main/SRVans_CoverLetter.pdf)
 
 ---
 
