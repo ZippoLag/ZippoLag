@@ -1,8 +1,9 @@
 # Sebastián Raúl Vansteenkiste  
 Barcelona, Spain | EU Work Authorization  
-LinkedIn: linkedin.com/in/srvans  
-GitHub: github.com/zippolag  
-Email: sebavanten@gmail.com  
+[LinkedIn: linkedin.com/in/srvans](https://www.linkedin.com/in/srvans/)
+[GitHub: github.com/zippolag](https://www.github.com/zippolag)
+[Email: sebavanten@gmail.com](mailto:sebavanten@gmail.com)
+[Book an interview with me](https://calendar.app.google/D6TQbH3ZZeuuNsP76) | [Read my Cover Letter](https://raw.githubusercontent.com/ZippoLag/ZippoLag/refs/heads/main/SRVans_CoverLetter.pdf)
 
 ---
 
@@ -29,7 +30,7 @@ Software Engineering Manager with 10+ years in professional software development
 - Process documentation & improvement  
 
 ### Technical Background
-- C# / .NET (Framework, Core, .NET 6–8)  
+- C# / .NET (Framework 2-4.5, Core, .NET 6–8)  
 - Backend APIs (REST, GraphQL)  
 - Azure (App Services, Functions, Queues, CosmosDB)  
 - SQL (SQL Server, MySQL)  
@@ -43,9 +44,9 @@ Software Engineering Manager with 10+ years in professional software development
 **Software Engineering Manager / Team Leader**  
 *Sep 2024 – Dec 2025*
 
-- Led a distributed, mostly-remote full-stack team maintaining and extending a mission-critical manufacturing traceability system.
+- Led a multicultural and distributed, mostly-remote full-stack team maintaining and extending a mission-critical manufacturing traceability system.
 - Conducted regular 1:1s, performance follow-ups, and resolved interpersonal and delivery conflicts.
-- Coordinated sprint planning, prioritization, releases, and hotfix deployments.
+- Coordinated sprint planning, prioritization, regular releases, and hotfix deployments.
 - Acted as primary engineering point of contact for product, service, and business stakeholders.
 - Documented existing development processes and incrementally improved team execution and predictability.
 
@@ -84,8 +85,10 @@ Software Engineering Manager with 10+ years in professional software development
 
 ## EDUCATION
 
-**Information Systems Engineering (coursework completed)**  
+**Information Systems Engineering (coursework completed, degree not pursued)**  
 Universidad Tecnológica Nacional — Argentina  
+**Information Technology Professional**
+Complejo Ed. Dr. Francisco de Gurruchaga - Argentina
 
 ---
 
