@@ -8,7 +8,7 @@ Barcelona, Spain | EU Work Authorization
 
 ## PROFILE
 
-Senior Technical Program Manager with a strong software engineering background and extensive experience coordinating complex initiatives across distributed teams. Specialized in delivery execution, dependency management, technical risk mitigation, and cross-functional communication. Comfortable operating between engineering, product, and business stakeholders without relying on formal authority.
+Software Engineering Manager with a strong software development background and extensive experience coordinating complex initiatives across distributed teams. Specialized in delivery execution, dependency management, technical risk mitigation, and cross-functional communication. Comfortable operating between engineering, product, and business stakeholders without relying on formal authority.
 
 ---
 
@@ -39,7 +39,7 @@ Senior Technical Program Manager with a strong software engineering background a
 ## RELEVANT EXPERIENCE
 
 ### Hitachi Energy — Barcelona, Spain  
-**Technical Program Lead / Team Leader**  
+**Software Engineering Manager / Team Leader**  
 *Sep 2024 – Dec 2025*
 
 - Coordinated delivery of a globally deployed manufacturing traceability system involving multiple integrations and stakeholders.
@@ -73,14 +73,15 @@ Senior Technical Program Manager with a strong software engineering background a
 - **CloudX:** Multi-project coordination across rotating clients.  
 - **Globant:** Team leadership in mobile initiatives.  
 - **Accenture:** Scope item lead within large enterprise programs.
+- **Freelance:** Web development and IT solutions for small businesses.
 
 ---
 
 ## EDUCATION
 
-**Information Systems Engineering (coursework completed)**  
+- **Information Systems Engineering (coursework completed, degree not pursued)**  
 Universidad Tecnológica Nacional — Argentina  
-**Information Technology Professional**
+- **Information Technology Professional**
 Complejo Ed. Dr. Francisco de Gurruchaga - Argentina
 
 ---
