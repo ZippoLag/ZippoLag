@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+# meta.siteUrl is not configured yet, so sitemap.xml is not generated.

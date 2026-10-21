@@ -1,0 +1,1631 @@
+/* ============================================================================
+   home — stylesheet
+   The spec's §8/§9/§10, implemented on whole square cells (R1, R9).
+   Data-derived rules (single-mode visibility, per-language line growth, the
+   measured glyph metrics, the per-size inset) are NOT here: the generator emits
+   them in a small <style> block, so a fifth language, a new glyph or a bigger
+   box needs no CSS edit. See home/README.md.
+
+   Layout contract
+   ---------------
+   --cell is one square cell. The page is exactly --grid-cols cells wide,
+   centred, with one cell of slack so a scrollbar can never cause horizontal
+   overflow. Every box (widget, glyph box, line, control, bar, dialog) is a
+   whole number of cells in both dimensions, and the widget's fused block fits
+   one lane.
+
+   The fit rule (R3–R6) lives in the `.box` block below: the generator emits raw
+   geometry in cells plus measured ink metrics in em, and the box derives its
+   font size and its two stretches with calc(), so the inset stays a live dial.
+   ========================================================================= */
+
+@property --cell {
+  syntax: "<length>";
+  inherits: true;
+  initial-value: 32px;
+}
+
+@property --dur {
+  syntax: "<time>";
+  inherits: true;
+  initial-value: 400ms;
+}
+
+/* D13.4: registered so `--hot-cols` (a max() of per-line `calc()`s emitted by the
+   generator) resolves to a number the browser checks and the battery can read;
+   without registration `getComputedStyle` hands back the token stream. */
+@property --hot-cols {
+  syntax: "<number>";
+  inherits: true;
+  initial-value: 21;
+}
+
+@property --hover-scale {
+  syntax: "<number>";
+  inherits: true;
+  initial-value: 2;
+}
+
+@property --hover-reserve {
+  syntax: "<number>";
+  inherits: true;
+  initial-value: 1;
+}
+
+/* D15.2: 1 while the stacked view has to reserve a shoulder/gap for the hot
+   growth, 0 when growing or reserving is switched off. */
+@property --stack-room {
+  syntax: "<number>";
+  inherits: true;
+  initial-value: 1;
+}
+
+@property --wave-step {
+  syntax: "<time>";
+  inherits: true;
+  initial-value: 200ms;
+}
+
+/* The widget's box geometry and glyph metrics, registered as numbers so that
+   `getComputedStyle` hands back a resolved value (not the calc() source) to the
+   debug overlay and to `npm run check`, and so the browser can interpolate
+   them. Names, units and meanings: see the `.box` rule below. */
+@property --w { syntax: "<number>"; inherits: true; initial-value: 1; }
+@property --h { syntax: "<number>"; inherits: true; initial-value: 1; }
+@property --fw { syntax: "<number>"; inherits: true; initial-value: 1; }
+@property --fh { syntax: "<number>"; inherits: true; initial-value: 1; }
+@property --xf { syntax: "<number>"; inherits: true; initial-value: 0; }
+@property --yf { syntax: "<number>"; inherits: true; initial-value: 0; }
+@property --xs { syntax: "<number>"; inherits: true; initial-value: 0; }
+@property --ys { syntax: "<number>"; inherits: true; initial-value: 0; }
+@property --fi { syntax: "<number>"; inherits: true; initial-value: 0; }
+@property --fdw { syntax: "<number>"; inherits: true; initial-value: 1; }
+@property --fgw { syntax: "<number>"; inherits: true; initial-value: 1; }
+@property --fshift { syntax: "<number>"; inherits: true; initial-value: 0; }
+@property --push { syntax: "<number>"; inherits: true; initial-value: 0; }
+@property --dy { syntax: "<number>"; inherits: true; initial-value: 1; }
+@property --grow { syntax: "<number>"; inherits: true; initial-value: 0; }
+@property --rw { syntax: "<number>"; inherits: true; initial-value: 1; }
+@property --rh { syntax: "<number>"; inherits: true; initial-value: 1; }
+@property --f { syntax: "<number>"; inherits: true; initial-value: 1; }
+@property --sx { syntax: "<number>"; inherits: true; initial-value: 1; }
+@property --sy { syntax: "<number>"; inherits: true; initial-value: 1; }
+@property --kx { syntax: "<number>"; inherits: true; initial-value: 0; }
+@property --ky { syntax: "<number>"; inherits: true; initial-value: 0; }
+@property --inkw { syntax: "<number>"; inherits: true; initial-value: 0; }
+@property --inkh { syntax: "<number>"; inherits: true; initial-value: 0; }
+@property --inkx { syntax: "<number>"; inherits: true; initial-value: 0; }
+@property --inky { syntax: "<number>"; inherits: true; initial-value: 0; }
+@property --bleed { syntax: "<number>"; inherits: true; initial-value: 0; }
+@property --mw { syntax: "<number>"; inherits: true; initial-value: 0; }
+@property --mv { syntax: "<number>"; inherits: true; initial-value: 0; }
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+:root {
+  color-scheme: light dark;
+  /* R11 (§10.7 layer 3): text presentation, declared where the page is rooted,
+     so every mark — the section tick drawn by `.tick::before` included — is
+     covered, not only the glyph boxes that repeat it below. */
+  font-variant-emoji: text;
+
+  /* --- grid ------------------------------------------------------------- */
+  /* Round 11 (D11.1/D11.2), tightened by round 12 (D12.1). One column.
+     Portrait holds the widest **hot** row (the longest title doubling to 21
+     cells), so it is 21 columns; landscape is 32. `--cell` is budgeted from
+     BOTH the grid and that row, and three cells of slack cover the scrollbar,
+     so an expanded title can never produce a sideways scrollbar. `--hot-cols`
+     is replaced by the generator with the widest hot row of the build.
+     The dial is 13px…30px (was 14px…32px): three cells of slack instead of two
+     and both ends a notch smaller, which is the review's "decrease the cell
+     size slightly on all platforms, mobile may be slightly smaller". The floor
+     is safe for the 24px target because every control is 2 cells. */
+  --grid-cols: 21; /* portrait; landscape overrides below */
+  --cell-slack: 3; /* cells of allowance, scrollbar included (D12.1) */
+  --cell-min: 13px; /* targets stay ≥24px: every control is 2 cells */
+  --cell-max: 30px; /* "slightly smaller on all platforms" (was 32px, then 40px) */
+  --hot-cols: 21;
+  /* max(C + slack, 2H − C + slack): the grid's own need, or the widest hot row
+     centred on the same origin. `max()` of two unitless numbers. Mirrored by
+     cellNeed()/cellBudget() in tools/lib/grid.mjs. */
+  --cell-need: max(
+    calc(var(--grid-cols) + var(--cell-slack)),
+    calc(2 * var(--hot-cols) - var(--grid-cols) + var(--cell-slack))
+  );
+  --cell: clamp(var(--cell-min), calc(100vw / var(--cell-need)), var(--cell-max));
+  --grid-width: calc(var(--grid-cols) * var(--cell));
+  /* D12.2 — the lattice's phase, measured on the element that draws the dots
+     (see `main::before`), never from `100vw`: `100vw` includes a classic
+     scrollbar, the content box does not, so a `100vw` phase sat half a
+     scrollbar to the right of every box. */
+  --grid-phase: calc(50% - (var(--grid-cols) - 1) * var(--cell) / 2);
+  /* D11.7: the prose measure and the dialog are whole-cell boxes. */
+  --measure-cells: min(20, var(--grid-cols));
+
+  /* R4: how much of a box a glyph may fill, per authored block size, as a
+     fraction of a cell. `0` is legal; these are the one global dial, and the
+     generator maps each authored size onto its key. */
+  --fit-inset: 0;
+  --fit-inset-1x1: 0.04;
+  --fit-inset-2x1: var(--fit-inset);
+  --fit-inset-1x2: var(--fit-inset);
+  --fit-inset-2x2: var(--fit-inset);
+
+  /* R3/R4, the anti-drift margin: a browser snaps glyph outlines to whole
+     pixels, so the ink it paints can sit up to ~0.5px (and, once a stretched
+     box magnifies it, up to ~3px) away from where the em table puts it. The fit
+     therefore shaves `--fit-bleed` cells *per unit of stretch* off every side
+     before filling the rest, which is what keeps a glyph inside its cell (the
+     check "no ink leaves the cell it was promised" fails if this is dialled
+     away). It is a per-cell quantity because the fit itself is in cells. */
+  --fit-bleed: 0.06;
+
+  /* R12 — how wide a `columns`-band glyph's fused region is, in cells.
+     `1` (shipped) is the authored column: the glyph keeps its own cell and only
+     its height is stretched, so the fused stack reads as a condensed logotype.
+     A higher value widens every such glyph, and at `--fused` it makes each one a
+     square — the owner's "ideally always squared" option. That is only coherent
+     because R12 allows an *enlarged* glyph to overlap its neighbours: at 1 no
+     two fused regions overlap at all, above 1 they do by `width − 1` cells.
+     The composed (cjk) block keeps its `--fused`-wide square and shifts right
+     by `width − 1`, so it still sits immediately right of the last latin
+     column. Values above 1 also widen the fused *content* past `--cols` cells,
+     which is what the widget's own width compensates for. */
+  --fused-glyph-width: 1;
+
+  /* The other half of R12: `1` makes every such glyph's fused width follow its
+     own fused *height*, which is what "always squared" means here — a glyph
+     standing for one language stays 1×1, one standing for three becomes 3×3. */
+  --fused-glyph-square: 0;
+
+  /* The bar carries the name byline (D11.5): two cells landscape, three portrait
+     (name row + control row). */
+  --bar-cells: 2;
+  --bar-h: calc(var(--bar-cells) * var(--cell));
+
+  /* --- type ------------------------------------------------------------- */
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono",
+    "Courier New", monospace;
+  /* D11.8: the proportional face the settings panel can switch to. It is
+     measured separately (glyph-metrics.json, glyphs.prop), so the fit stays
+     exact in either mode. */
+  --font-prop: "Helvetica Neue", Helvetica, Arial, "Liberation Sans", system-ui,
+    sans-serif;
+  /* D15.3: the third design font pairs the proportional latin face with a
+     mincho/japanese serif, so the setting changes both scripts at once. */
+  --font-serif: Georgia, "Iowan Old Style", "Times New Roman", "Liberation Serif", serif;
+  --font-cjk: "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic",
+    "Noto Sans JP", "Noto Sans CJK JP", "Source Han Sans JP", sans-serif;
+  /* D15.3: a second Japanese gothic for the proportional design font, so every
+     mode moves both scripts (mono = gothic, prop = rounded gothic, serif =
+     mincho), not just the latin face. */
+  --font-cjk-prop: "Hiragino Maru Gothic ProN", "Hiragino Kaku Gothic ProN",
+    "Yu Gothic", "Noto Sans JP", "Source Han Sans JP", sans-serif;
+  --font-cjk-serif: "Hiragino Mincho ProN", "Yu Mincho", "Noto Serif JP",
+    "Source Han Serif JP", "Noto Serif CJK JP", serif;
+  --font-latin: var(--font-mono);
+  --fs-body: clamp(12px, calc(var(--cell) * 0.55), 17px);
+  --fs-small: clamp(11px, calc(var(--cell) * 0.45), 14px);
+  /* D13.2: the animation duration is a setting (`--dur-user`, written by the boot
+     script and app.js). `--dur` stays the derived value so the reduced-motion
+     media query can still shorten every transition; an inline `--dur` could not
+     be overridden by it. */
+  --dur: var(--dur-user, 400ms);
+  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+
+  /* D11.9/D13.3–D13.4: the hover effects are switches; bold, growth, space
+     reservation, the growth factor and the wave stagger are independent dials. */
+  --hover-grow: 1;
+  --hover-scale: 2;
+  --hover-reserve: 1;
+  --stack-room: 1;
+  --wave-step: 200ms;
+
+  /* --- palette (D2.4 monochrome) ---------------------------------------- */
+  --bg: #fffff0; /* ivory */
+  --fg: #15202b; /* charcoal */
+  --fg-muted: #55606c; /* 6.4:1 on ivory, 4.75:1 over the portrait's darkest cell */
+  --rule: rgba(21, 32, 43, 0.16);
+  --dot: rgba(21, 32, 43, 0.22); /* decorative, deliberately below 3:1 */
+}
+
+html[data-theme="dark"] {
+  --bg: #15202b;
+  --fg: #fffff0;
+  --fg-muted: #b8c2ca; /* 9.1:1 on charcoal, 4.78:1 over the portrait's lightest cell */
+  --rule: rgba(255, 255, 240, 0.18);
+  --dot: rgba(255, 255, 240, 0.2);
+}
+
+html[data-font="prop"] {
+  --font-latin: var(--font-prop);
+  --font-cjk: var(--font-cjk-prop);
+}
+
+/* D15.3: the design font changes the latin and japanese stacks together. The
+   measured metrics (content/glyph-metrics.json) carry one row per design font. */
+html[data-font="serif"] {
+  --font-latin: var(--font-serif);
+  --font-cjk: var(--font-cjk-serif);
+}
+
+html[data-hover-grow="0"] {
+  --hover-grow: 0;
+}
+
+/* D13.3: reserve space is the *push* half of the growth, not the growth itself. */
+html[data-hover-reserve="0"] {
+  --hover-reserve: 0;
+}
+
+/* D15.2: without growth there is nothing to grow into, and without reservation
+   the row is not re-laid — so both cases collapse the stacked view to its rows
+   with no shoulder and no inter-line gap. */
+html[data-hover-grow="0"],
+html[data-hover-reserve="0"] {
+  --stack-room: 0;
+}
+
+/* D13.1: a modal freezes the page behind it at its resting 1×1 state — no
+   growth, no stroke, no wave, no font cycle. `!important` is deliberate: the
+   generated per-language rules and the single-language 2× title set `--grow`
+   directly, and this is the one state that has to win over all of them. */
+html[data-modal="1"] .widget {
+  --hover-grow: 0 !important;
+}
+
+html[data-modal="1"] .box {
+  --grow: 0 !important;
+}
+
+html[data-modal="1"] .box > .gl {
+  -webkit-text-stroke-width: 0 !important;
+}
+
+@media (orientation: landscape) {
+  :root {
+    --grid-cols: 32;
+  }
+}
+
+/* A narrow landscape window cannot hold 32 cells at a readable size; fall back
+   to the portrait count and let the hot-row budget do the rest. */
+@media (orientation: landscape) and (max-width: 719px) {
+  :root {
+    --grid-cols: 21;
+  }
+}
+
+@media (orientation: portrait) {
+  :root {
+    --bar-cells: 4;
+  }
+}
+
+html {
+  background: var(--bg);
+  color: var(--fg);
+  scroll-padding-block-start: var(--bar-h);
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  padding-block-start: var(--bar-h);
+  font-family: var(--font-latin);
+  font-size: var(--fs-body);
+  /* D11.7: the prose line box is exactly one cell, so an n-line paragraph is n
+     cells tall in both typefaces and at every breakpoint. */
+  line-height: var(--cell);
+  background: var(--bg);
+  position: relative;
+}
+
+p,
+ul,
+ol,
+figure {
+  margin: 0;
+}
+
+ul {
+  padding: 0;
+  list-style: none;
+}
+
+a {
+  color: inherit;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.2em;
+}
+
+a:hover {
+  text-decoration-thickness: 2px;
+}
+
+:where(button, a, [tabindex]):focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+.skip-link {
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-start: 0;
+  z-index: 30;
+  transform: translateY(-150%);
+  padding: calc(var(--cell) * 0.25) var(--cell);
+  background: var(--bg);
+  color: var(--fg);
+  border: 2px solid currentColor;
+}
+
+.skip-link:focus {
+  transform: none;
+}
+
+/* ---------------------------------------------------------- the portrait */
+
+/* §10.8 / D13.6 — the filtered selfie, fixed to the bottom-right of the content
+   grid.
+
+   It is a *picture*, not a layout element: `fixed` so scrolling never drags it,
+   `pointer-events: none` so nothing under it is unreachable, `aria-hidden` so it
+   never enters the accessibility tree, and absent in print and forced colours.
+
+   The character grid is the page grid: one `<span>` per cell, each exactly
+   `--cell` square, and `.portrait-inner` has `--grid-width` and is centred in the
+   initial containing block, so its right edge is the grid's right edge at every
+   width (a `100vw` anchor would include the scrollbar — the D12.2 lesson). The
+   bottom edge sits on the page's bottom; a last, fractional row is simply not
+   drawn. The field is painted in the body face's *monospace* stack whatever the
+   typeface setting says, because the quadrant marks have to keep one pitch. */
+.portrait {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  overflow: hidden;
+  pointer-events: none;
+  user-select: none;
+}
+
+.portrait-inner {
+  width: var(--grid-width);
+  display: flex;
+  justify-content: flex-end;
+}
+
+.portrait-grid {
+  display: grid;
+  grid-template-columns: repeat(var(--portrait-cols, 20), var(--cell));
+  grid-template-rows: repeat(var(--portrait-rows, 17), var(--cell));
+  color: var(--fg);
+  opacity: 0.14;
+  font-family: var(--font-mono);
+  font-size: calc(var(--cell) * 1.45);
+  line-height: 1;
+  font-variant-ligatures: none;
+}
+
+.portrait-grid > span {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--cell);
+  height: var(--cell);
+  /* The line box is the cell, not the enlarged font's 1em: the quadrant ink can
+     then fill the cell without spilling into the row above. */
+  line-height: var(--cell);
+}
+
+html[data-theme="dark"] .portrait-grid {
+  opacity: 0.2;
+}
+
+/* D14.2: the colour tone has its own per-cell foreground and background, so the
+   layer only has to stay a faint print. It needs more than the mono 0.14 to read
+   as colour at all, but still well below the body text: this is decor. */
+.portrait[data-tone="color"] .portrait-grid {
+  opacity: 0.3;
+}
+
+html[data-theme="dark"] .portrait[data-tone="color"] .portrait-grid {
+  opacity: 0.4;
+}
+
+/* The decorative lattice: one faint dot per grid vertex (D2.3, R7).
+   `at 0 0` matters: a radial-gradient is centred in its tile by default, which
+   would put every dot half a cell away from the vertex it marks — off the grid
+   the overlay draws next to it. The quarter-dots of four neighbouring tiles add
+   up to one dot on the vertex (checked by `lattice.vertices`).
+
+   `--grid-phase` (D12.2) is a percentage of THIS element's own width, i.e. of the
+   content box, so the dots track the centred grid exactly however wide the
+   content box is — including when a classic scrollbar takes 15px off it, which is
+   the case the old `(100vw - grid)/2` phase got wrong. */
+main {
+  position: relative;
+  width: 100%;
+}
+
+main::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-image: radial-gradient(circle at 0 0, var(--dot) 1px, transparent 1.5px);
+  background-size: var(--cell) var(--cell);
+  background-position: var(--grid-phase) 0;
+}
+
+main > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* ---------------------------------------------------------------- fixed bar */
+
+.bar {
+  position: fixed;
+  inset-block-start: 0;
+  inset-inline: 0;
+  z-index: 20;
+  height: var(--bar-h);
+  background: var(--bg);
+  border-block-end: 1px solid var(--rule);
+}
+
+.bar-inner {
+  width: var(--grid-width);
+  margin-inline: auto;
+  height: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-rows: repeat(2, var(--cell));
+  align-items: center;
+  column-gap: var(--cell);
+}
+
+/* D11.5: the name is the page's <h1>, in the bar, followed by the lowercase
+   title suffix as a byline. The suffix is hidden where the name needs the
+   width; the tagline is metadata only and is not drawn here. */
+.bar-byline {
+  grid-column: 1;
+  grid-row: 1 / span 2;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.bar-name {
+  margin: 0;
+  align-self: flex-start;
+  /* D15.5: the clickable title glyphs rest at one cell, so the page's own title
+     (the name) has to be at least that size. 1.15 cell keeps it visibly larger
+     at every breakpoint without pushing the 2/4-row bar off the grid. */
+  font-size: clamp(16px, calc(var(--cell) * 1.5), 45px);
+  line-height: 1;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.bar-suffix {
+  align-self: center;
+  font-size: var(--fs-small);
+  line-height: 1;
+  color: var(--fg-muted);
+  text-transform: lowercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.bar-controls {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  display: flex;
+  align-items: center;
+  gap: 0;
+}
+
+@media (max-width: 779px) {
+  .bar-suffix {
+    display: none;
+  }
+}
+
+/* Portrait: the name gets two rows (the larger D15.5 name needs them); the
+   controls take the two below it. */
+@media (orientation: portrait) {
+  .bar-inner {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: repeat(4, var(--cell));
+  }
+
+  .bar-byline {
+    grid-row: 1 / span 2;
+    grid-column: 1;
+  }
+
+  .bar-suffix {
+    display: none;
+  }
+
+  .bar-controls {
+    grid-row: 3 / span 2;
+    grid-column: 1;
+    justify-self: end;
+  }
+}
+
+.picker {
+  display: flex;
+  align-items: center;
+  gap: 0;
+}
+
+/* Every control is 2x2 whole cells: at the 16-column grid a cell can be as
+   narrow as 16px, and a control must still clear the 24x24 WCAG target
+   (§2.5.8) without resorting to a sub-grid. */
+.pick,
+.theme {
+  width: calc(var(--cell) * 2);
+  height: calc(var(--cell) * 2);
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font: inherit;
+  font-size: var(--fs-small);
+  letter-spacing: 0.06em;
+  color: var(--fg-muted);
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 0;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.theme-icon {
+  display: none;
+}
+
+html[data-theme-choice="light"] .theme-icon[data-state="light"],
+html[data-theme-choice="dark"] .theme-icon[data-state="dark"],
+html[data-theme-choice="auto"] .theme-icon[data-state="auto"] {
+  display: block;
+}
+
+.pick:hover,
+.theme:hover {
+  color: var(--fg);
+  border-color: var(--rule);
+}
+
+.pick[aria-current="true"] {
+  color: var(--fg);
+  font-weight: 700;
+  border-color: currentColor;
+}
+
+/* The unknown-language notice lives in the flow (not over the fixed bar), so it
+   never covers content and its background is unambiguous. D12.4: its padding is
+   a whole cell, like every other flow box. */
+.lang-note {
+  width: var(--grid-width);
+  margin-inline: auto;
+  font-size: var(--fs-small);
+  color: var(--fg-muted);
+  padding: var(--cell) 0 0;
+}
+
+.lang-note[hidden] {
+  display: none;
+}
+
+.noscript {
+  width: var(--grid-width);
+  margin-inline: auto;
+  padding: var(--cell);
+  border: 1px solid currentColor;
+  font-size: var(--fs-small);
+}
+
+html[data-js="1"] .noscript {
+  display: none;
+}
+
+/* -------------------------------------------------------------------- bar */
+
+.site-head {
+  position: relative;
+}
+
+/* --------------------------------------------------------------------- grid */
+
+.lanes {
+  width: var(--grid-width);
+  margin-inline: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.lane {
+  display: flex;
+  flex-direction: column;
+}
+
+.section {
+  /* A section fills its lane: the placement span is a whole-cell budget the
+     validator checks against the lane width, not a second width to maintain.
+     D15.6: the fused title blocks are the page's vertical rhythm — no section
+     padding is added when nothing is open. An open body brings its own cells. */
+  width: 100%;
+  padding-block-end: 0;
+}
+
+.section-title {
+  font-size: var(--fs-body);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin: 0 0 var(--cell);
+}
+
+/* With JS on the widget (multi) or the single-language 2×2 title (single)
+   carries the title visually, so the heading stays in the accessibility tree as
+   the section's name. Without JS it is the only title there is. */
+html[data-js="1"] .section-title {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.tick {
+  display: inline-block;
+  width: calc(var(--cell) * 0.5);
+  color: var(--fg-muted);
+}
+
+.tick::before {
+  content: "▚";
+}
+
+/* ============================================================================
+   The title widget: authored boxes fitted into whole-cell regions (§8)
+   ========================================================================= */
+
+.widget {
+  /* --cols / --rows / --rows0 / --fused / --pad come from the generator, in
+     cells. --fgw is the
+     effective fused glyph width (R12): the dial, kept inside `1 … --fused`. It is
+     computed here so both the widget's own width and every box inherit one
+     number. The width compensates for it in the fused view only, so the stacking
+     transition stays a transform with no layout (§8.8). */
+  --st: 0; /* 0 = fused (resting), 1 = stacked */
+  --fgw: clamp(
+    1,
+    max(var(--fused-glyph-width, 1), var(--fused) * var(--fused-glyph-square, 0)),
+    var(--fused)
+  );
+  position: relative;
+  width: calc((var(--cols) + (var(--fgw) - 1) * (1 - var(--st))) * var(--cell));
+  /* D15.6: at rest the box is exactly the fused block plus the shoulder the hot
+     growth needs (none when grow/reserve is off) — not the whole stacked view.
+     Hovering expands it to the stacked height with the same duration, so the
+     blocks sit tight in the fused view and the stack has all its rows. */
+  --stack-h: calc(
+    (var(--rows0, var(--rows)) + (var(--rows) - var(--rows0, var(--rows))) * var(--stack-room)) *
+      var(--cell)
+  );
+  height: calc((var(--fused) + var(--pad, 1) * var(--stack-room)) * var(--cell));
+  transition: height var(--dur) var(--ease);
+}
+
+.widget[data-state="stacked"] {
+  --st: 1;
+  height: var(--stack-h);
+}
+
+.boxes,
+.lines {
+  position: absolute;
+  inset: 0;
+  /* Both layers are transparent to the pointer by default, so what is hit is
+     always the *glyph* below (§8.7) — the widget's box is only the space the
+     stacked view reserves. See the two overrides below. */
+  pointer-events: none;
+}
+
+/* §8.7: the text is what the pointer has to reach for the fused → stacked
+   transition: hovering its empty rows, its gaps or the composed block's padding
+   must leave the widget fused. A box opts back into hit testing (a parent
+   `none` does not stop a child that asks for `auto`). */
+.boxes .box {
+  pointer-events: auto;
+}
+
+/* Once stacked, the line buttons are the visible thing to click and the only
+   hover target that grows a line, so they take the pointer then — and only then,
+   so the invisible rows of a fused widget can never be clicked by accident. */
+.widget[data-state="stacked"] .line {
+  pointer-events: auto;
+}
+
+/* A glyph box.
+
+   Raw geometry, emitted inline per box, in cells:
+     --w/--h    the authored box          --fw/--fh  the region it fills when fused
+     --xf/--yf  fused region origin       --xs/--ys  stacked box origin
+   Measured, emitted once per glyph by the generator (generated CSS):     --inkw/--inkh  ink extents in em     --inkx/--inky  ink origin (em, from
+                                                     the box's own top-left)
+     --fi  the inset of this authored size (R4)
+   --grow         1 while this language's line is hot
+   Derived here (R3–R6), all in cells:
+     --fdw       the fused width this box actually uses (R12): its own data width,
+                except in the `columns` band, where the generated CSS hands it
+                `max(--fw, --fused-glyph-width)`;  --fshift  the cells a composed
+                block shifts right by when that dial widens the column grid;
+     --rw/--rh  the region this state allots: the fused region at rest, the box
+                when stacked, and *twice* that on both axes while the line is hot
+                (§8.5);
+     --push/--dy  the hot layout of §8.5: how many cells right this box moves while
+                its line is hot (every entry before it doubled, spaces kept at one
+                cell), and how many rows from its top to its entry's bottom — the
+                corner the growth is anchored at;
+     --bleed    the anti-drift margin, per cell of stretch (`--fit-bleed`);
+     --mw/--mv  that margin on each axis: `bleed` x how far this state stretches
+                the box (never less than one);
+     --f        the largest font size that fits every state's region minus its
+                inset and margin, so no axis is ever downscaled;
+     --sx/--sy  the two independent stretches that make the ink box equal the
+                region minus its inset and margin, centred on it;
+     --kx/--ky  the ink box centre inside the element, which is the transform
+                origin: the ink — not the em box, not the baseline — is centred. */
+.box {
+  --w: 1;
+  --h: 1;
+  --fw: var(--w);
+  --fh: var(--h);
+  --grow: 0;
+  --fi: var(--fit-inset);
+  --bleed: var(--fit-bleed);
+  /* R12: the data width unless the generated CSS widens this band's glyphs. */
+  --fdw: var(--fw);
+  --fshift: 0;
+  /* D13.4: the growth factor is `--hover-scale` (2 by default), not a hard 2×.
+     `--grow` stays the 0/1 hot switch, so the region is `w × (1 + grow(scale−1))`. */
+  --rw: calc(
+    var(--fdw) + (var(--w) * (1 + var(--grow) * (var(--hover-scale) - 1)) - var(--fdw)) * var(--st)
+  );
+  --rh: calc(
+    var(--fh) + (var(--h) * (1 + var(--grow) * (var(--hover-scale) - 1)) - var(--fh)) * var(--st)
+  );
+  --mw: calc(var(--bleed) * max(1, var(--rw) / var(--w)));
+  --mv: calc(var(--bleed) * max(1, var(--rh) / var(--h)));
+  --f: min(
+    calc((var(--w) - 2 * (var(--fi) + var(--bleed))) / var(--inkw)),
+    calc((var(--fdw) - 2 * (var(--fi) + var(--bleed) * max(1, var(--fdw) / var(--w)))) / var(--inkw)),
+    calc((var(--h) - 2 * (var(--fi) + var(--bleed))) / var(--inkh)),
+    calc((var(--fh) - 2 * (var(--fi) + var(--bleed) * max(1, var(--fh) / var(--h)))) / var(--inkh))
+  );
+  --kx: calc(var(--f) * (var(--inkx) + var(--inkw) / 2));
+  /* --ky is the same for the ink's vertical centre inside the element. The
+     browser's own baseline placement is already inside --inky (measured from
+     painted pixels), so no ascent/descent ever has to be trusted here. */
+  --ky: calc(var(--f) * (var(--inky) + var(--inkh) / 2));
+  /* The region's own centre inside the element (R5).
+
+     At rest the region *is* the box (stacked) or the fused region (fused), so its
+     centre is its own half-height, anchored at the column it was emitted for —
+     which is what keeps composed leaves tiling their square.
+
+     While the line is hot the region grows towards the **top-right** from the
+     box's bottom-left corner (§8.5, owner rule 1): `--dy` is how far this box's
+     top sits above its entry's bottom, so a lone box grows up one row for each
+     row it is tall and a tower's members grow about their entry's bottom — the
+     members still tile the grown footprint exactly. The row it grows into is the
+     shoulder between two slots (the `gap` row, or the widget's own `pad` for the
+     first line), which no glyph is ever drawn in.
+
+     Horizontally the growth also opens to the right only: `--push` moves the box
+     by exactly the width every entry before it added, so no grown glyph ever
+     lands on the one before it — the overlap the old centred growth produced, and
+     the reason the line is re-laid instead of scaled. A grown line may therefore
+     be wider than the widget's box (up to twice its letter count, with word
+     spaces kept at one cell); the page is allowed to scroll sideways while such a
+     line is hot (§8.5, owner decision: the row grows past the box rather than
+     losing its 2× width). */
+  /* D11.6: `--rw`/`--rh` are the *hit region*, not just the authored box, and
+     the element's layout size is that region. Its translate is the region's
+     whole-cell origin. The ink is centred and stretched by the inner `.gl`,
+     never by moving the hit target off the grid. */
+  /* D15.2: the compact stacked rows remove the shoulder/gap when grow or
+     reserve is off; with both on this is exactly `--ys`. */
+  --ysv: calc(
+    var(--ys0, var(--ys)) + (var(--ys) - var(--ys0, var(--ys))) * var(--stack-room)
+  );
+  --sx: calc((var(--rw) - 2 * (var(--fi) + var(--mw))) / (var(--inkw) * var(--f)));
+  --sy: calc((var(--rh) - 2 * (var(--fi) + var(--mv))) / (var(--inkh) * var(--f)));
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-start: 0;
+  width: calc(var(--rw) * var(--cell));
+  height: calc(var(--rh) * var(--cell));
+  /* R3: a glyph may never paint outside its region. The clip is applied by the
+     generated *hot* rules, not here: at rest the fitted ink is allowed to sit on
+     the region's edge (the fixture measures that promise at `inset: 0`), while a
+     grown glyph's transformed layout box can overhang the page and must not
+     create a horizontal scrollbar. */
+  font-size: calc(var(--f) * var(--cell));
+  line-height: 0; /* the baseline placement .gl explains below */
+  transform: translate(
+    calc(
+      (var(--xf) + (var(--xs) - var(--xf)) * var(--st) +
+        var(--push) * var(--st) * var(--grow) * (var(--hover-scale) - 1) * var(--hover-reserve) +
+        var(--fshift) * (1 - var(--st))) *
+        var(--cell)
+    ),
+    calc(
+      (var(--yf) + (var(--ysv) - var(--yf)) * var(--st) + (var(--dy) - var(--rh)) * var(--st) * var(--grow)) *
+        var(--cell)
+    )
+  );
+  transition: transform var(--dur) var(--ease), width var(--dur) var(--ease),
+    height var(--dur) var(--ease);
+  /* D13.2: `--box-delay` is the wave stagger app.js writes for the hot line; it
+     is 0 when the wave is off, so the two states settle on the same geometry. */
+  transition-delay: var(--box-delay, 0ms);
+  -webkit-user-select: none;
+  user-select: none;
+  font-variant-ligatures: none;
+  font-variant-emoji: text; /* R11: a mark can never be rendered as an emoji */
+  text-rendering: geometricPrecision;
+}
+
+/* The glyph: one character, drawn from the element's top-left inside a
+   zero-height line box, so wherever the browser puts the baseline, the ink box
+   it paints is what `--inkx/--inky/--inkw/--inkh` already describe. That is the
+   one font fact the fit never has to trust, which is why it is measured from
+   painted pixels rather than read off a font metric table
+   (content/glyph-metrics.json, §8.6). */
+.box > .gl {
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-start: 0;
+  display: block;
+  white-space: pre;
+  /* D11.6: the ink's centre is placed on the region's centre, then the glyph is
+     stretched about that centre (R3/R5). Because both the translate and the
+     scale happen here, the `.box` itself stays exactly on the cell grid. */
+  transform-origin: calc(var(--kx) * var(--cell)) calc(var(--ky) * var(--cell));
+  transform: translate(
+      calc((var(--rw) / 2 - var(--kx)) * var(--cell)),
+      calc((var(--rh) / 2 - var(--ky)) * var(--cell))
+    )
+    scale(var(--sx), var(--sy));
+  /* D13.2/D13.5: the same stagger moves the stroke; fontscroll's inline family
+     is deliberately not transitioned (it is a step, and it has to settle to CSS). */
+  transition: transform var(--dur) var(--ease), -webkit-text-stroke-width var(--dur) var(--ease);
+  transition-delay: var(--box-delay, 0ms);
+}
+
+.box[data-script="cjk"] > .gl {
+  font-family: var(--font-cjk);
+}
+
+/* --- language lines (buttons) --------------------------------------------- */
+
+/* A line is its slot plus the gap row below it. The extra row is what keeps the
+   hit area at the WCAG target size (24x24) even where a cell is only 16px, and
+   it lands on empty grid: no glyph is ever drawn there. The visible marker stays
+   inside the slot, so what is emphasised is what the line actually covers. */
+.line {
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-start: 0;
+  /* D11.2: the clickable title row spans the whole grid, not just the glyph
+     block, so a section can be opened from anywhere on its row. */
+  width: calc(var(--grid-cols) * var(--cell));
+  height: calc(
+    (var(--rows0, var(--rows, 2)) + (var(--rows, 2) - var(--rows0, var(--rows, 2))) * var(--stack-room)) *
+      var(--cell)
+  );
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  transform: translateY(
+    calc((var(--by0, var(--by, 1)) + (var(--by, 1) - var(--by0, var(--by, 1))) * var(--stack-room)) * var(--cell))
+  );
+  opacity: var(--st);
+  transition: opacity var(--dur) var(--ease), height var(--dur) var(--ease),
+    transform var(--dur) var(--ease);
+}
+
+.line::before {
+  content: "";
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline: 0;
+  height: var(--cell);
+}
+
+/* Selected: never colour alone (§8.5) — a solid rule under the line, plus the
+   doubled glyph height its `--grow` produces. */
+.line[aria-expanded="true"]::before {
+  box-shadow: inset 0 -2px 0 0 currentColor;
+}
+
+.line:hover {
+  cursor: pointer;
+}
+
+/* D11.4: in single-language mode the widget keeps drawing the title, with the
+   chosen language's line hot at rest (2×2 characters). Its own width/height come
+   from the generator (`--scols`/`--srows`); the other languages' boxes and every
+   line button are hidden by generated rules. */
+html[data-mode="single"] .widget {
+  margin-block-end: 0;
+}
+
+/* ============================================================================
+   Section bodies
+   ========================================================================= */
+
+.bodies {
+  position: relative;
+}
+
+/* D11.7: every block quantity is a whole cell. The prose measure is in cells,
+   not `ch`, so it does not move when the typeface changes (D11.8). */
+/* D15.7: the body is a one-row grid so the accordion can animate its height.
+   The outer box keeps the drawn rule and the whole-cell measure; the inner box
+   carries the prose padding and is the only thing that overflows while a
+   transition runs. */
+.body {
+  display: grid;
+  grid-template-rows: 1fr;
+  opacity: 1;
+  visibility: visible;
+  /* A drawn rule, not a layout border: 1px of border would make an otherwise
+     whole-cell body 0.06 cells taller. `box-shadow` keeps the box exact. */
+  box-shadow: inset 0 1px 0 var(--rule);
+  max-width: calc(var(--measure-cells) * var(--cell));
+  transition: grid-template-rows var(--dur) var(--ease), opacity var(--dur) var(--ease),
+    visibility 0s linear 0s;
+}
+
+.body-inner {
+  min-height: 0;
+  overflow: hidden;
+  /* D11.7: the body's own box starts and ends on whole cells. */
+  padding-block: var(--cell);
+}
+
+/* With JS on, the multilingual accordion is a set of collapsed one-row grids;
+   the closed pane is also hidden from assistive technology. The delay on
+   `visibility` keeps the closing pane visible until its height reaches zero. */
+html[data-js="1"][data-mode="multi"] .body:not([data-active="true"]) {
+  grid-template-rows: 0fr;
+  opacity: 0;
+  visibility: hidden;
+  transition: grid-template-rows var(--dur) var(--ease), opacity var(--dur) var(--ease),
+    visibility 0s linear var(--dur);
+}
+
+.body p + p {
+  margin-block-start: var(--cell);
+}
+
+.teaser {
+  margin-block-end: var(--cell);
+}
+
+.links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 var(--cell);
+  padding-block: var(--cell);
+}
+
+.links-head {
+  width: 100%;
+  font-size: var(--fs-small);
+  color: var(--fg-muted);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.controls {
+  display: flex;
+  gap: 0;
+  padding-block-start: var(--cell);
+}
+
+.ctl {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: calc(var(--cell) * 2);
+  height: calc(var(--cell) * 2);
+  color: var(--fg-muted);
+  background: none;
+  border: 1px solid var(--rule);
+  cursor: pointer;
+}
+
+.ctl:hover {
+  color: var(--fg);
+  border-color: currentColor;
+}
+
+.icon {
+  display: block;
+}
+
+/* -------------------------------------------------------------------- footer */
+
+.footer {
+  width: var(--grid-width);
+  margin-inline: auto;
+  padding-block: calc(var(--cell) * 2);
+  /* D12.4: a drawn rule, not a 1px border — a border would make the footer
+     5.031 cells tall and push nothing (it is last), but the rule is the same
+     everywhere in the flow so the next reader does not copy the wrong one. */
+  box-shadow: inset 0 1px 0 var(--rule);
+  font-size: var(--fs-small);
+  color: var(--fg-muted);
+}
+
+.footer-name {
+  color: var(--fg);
+  letter-spacing: 0.04em;
+}
+
+/* D12.3 — the lowercase colophon. `meta.tagline` is rendered exactly once, here:
+   a caption under the name, never uppercased, in the body face. */
+.footer-tagline {
+  padding-block-start: var(--cell);
+  text-transform: lowercase;
+}
+
+.footer-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 var(--cell);
+  padding-block-start: var(--cell);
+}
+
+/* D15.5's accessible target rule: a footer link is a control, so it gets two
+   cells of height (26–60 px) instead of the 19 px of an inline text run. The
+   footer therefore stays on whole cells and every link clears 24 px. */
+.footer-links a {
+  display: inline-flex;
+  align-items: center;
+  min-height: calc(var(--cell) * 2);
+}
+
+/* -------------------------------------------------------------------- dialog */.dialog {
+  /* D11.7: a whole-cell box, narrower than the page so the backdrop is visible.
+     The UA's default `max-width: calc(100% - 2em - 6px)` has to be overridden,
+     or the dialog is clipped to a non-cell width. */
+  width: calc(min(var(--measure-cells) + 6, var(--grid-cols)) * var(--cell));
+  max-width: calc(min(var(--measure-cells) + 6, var(--grid-cols)) * var(--cell));
+  max-height: calc(100vh - 2 * var(--cell));
+  margin: auto;
+  padding: 0;
+  /* The UA gives a dialog a 3px border and `overflow: auto`; either would take
+     the whole-cell inner width away from it. The frame is the box-shadow above,
+     and `.dlg-content` is the only scroll container. */
+  border: 0;
+  overflow: visible;
+  color: var(--fg);
+  background: var(--bg);
+  /* A drawn frame, not a layout border: the dialog's inner width stays a whole
+     number of cells (D11.7), which a 1px border would break. */
+  box-shadow: 0 0 0 1px currentColor;
+  /* D15.7: the modal opens and closes with a small, clean transform/fade. The
+     `display`/`overlay` transitions with `allow-discrete` keep a closing dialog
+     in the tree until its exit animation ends. */
+  opacity: 0;
+  transform: translateY(calc(var(--cell) * 0.35)) scale(0.985);
+  transition: opacity var(--dur) var(--ease), transform var(--dur) var(--ease),
+    display var(--dur) allow-discrete, overlay var(--dur) allow-discrete;
+}
+
+.dialog[open] {
+  opacity: 1;
+  transform: none;
+}
+
+@starting-style {
+  .dialog[open] {
+    opacity: 0;
+    transform: translateY(calc(var(--cell) * 0.35)) scale(0.985);
+  }
+}
+
+.dialog::backdrop {
+  background: rgba(21, 32, 43, 0.6);
+  opacity: 0;
+  transition: opacity var(--dur) var(--ease), display var(--dur) allow-discrete,
+    overlay var(--dur) allow-discrete;
+}
+
+.dialog[open]::backdrop {
+  opacity: 1;
+}
+
+@starting-style {
+  .dialog[open]::backdrop {
+    opacity: 0;
+  }
+}
+
+.dlg-inner {
+  position: relative;
+  /* D15.4: one cell of padding, not two — the panel's frame is a rule, not a
+     room. Every edge is still a whole cell. */
+  padding: var(--cell);
+}
+
+/* D11.3: with JS on, the dialog renders only the language that was opened. The
+   other languages stay in the document for the no-JS page (see <noscript>). */
+html[data-js="1"] .dialog:not(.settings-dialog) .dlg-inner[data-active="false"] {
+  display: none;
+}
+
+.dlg-title {
+  font-size: var(--fs-body);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin: 0 calc(var(--cell) * 2) 0 0;
+  line-height: var(--cell);
+}
+
+.dlg-content {
+  max-height: min(60vh, calc(var(--cell) * 20));
+  overflow: auto;
+  scroll-padding-block: var(--cell);
+}
+
+.dlg-content p + p {
+  margin-block-start: var(--cell);
+}
+
+.dlg-close {
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-end: 0;
+  width: calc(var(--cell) * 2);
+  height: calc(var(--cell) * 2);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: inherit;
+  background: none;
+  border: 1px solid var(--rule);
+  cursor: pointer;
+}
+
+.dlg-close:hover {
+  border-color: currentColor;
+}
+
+/* D11.9: the settings panel. The two hover switches are independent; the typeface
+   radios are a separate section. Every row is a whole number of cells tall. */
+.setting-group {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.setting-group + .setting-group {
+  padding-block-start: var(--cell);
+  /* D12.4: drawn, not a border — a 1px border would shift every row below it. */
+  box-shadow: inset 0 1px 0 var(--rule);
+}
+
+.setting-legend {
+  display: block;
+  /* A legend otherwise shrink-wraps its text, which is not a whole-cell width
+     (D12.4/R9): 100% of the fieldset's content box is. */
+  inline-size: 100%;
+  padding: 0;
+  margin-block-end: 0;
+  font-size: var(--fs-small);
+  line-height: var(--cell);
+  color: var(--fg-muted);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.setting {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--cell) * 0.5);
+  min-height: calc(var(--cell) * 2);
+  cursor: pointer;
+}
+
+.setting input {
+  inline-size: calc(var(--cell) * 2);
+  block-size: calc(var(--cell) * 2);
+  margin: 0;
+  accent-color: var(--fg);
+  cursor: pointer;
+}
+
+.setting-group .setting + .setting {
+  margin-block-start: 0;
+}
+
+/* D13.2: the two numeric rows sit directly under the wave toggle and are
+   whole-cell boxes like every other control. The per-character delay is disabled
+   (`[disabled]`) while the wave itself is off; the duration never is. */
+.setting-number {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--cell) * 0.5);
+  min-height: calc(var(--cell) * 2);
+  margin-block-start: 0;
+  padding-inline-start: var(--cell);
+}
+
+.setting-number label {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.setting-number input {
+  inline-size: calc(var(--cell) * 4);
+  block-size: calc(var(--cell) * 2);
+  margin: 0;
+  padding: 0 calc(var(--cell) * 0.5);
+  font: inherit;
+  font-variant-numeric: tabular-nums lining-nums;
+  color: var(--fg);
+  background: var(--bg);
+  border: 1px solid var(--rule);
+  border-radius: 0;
+}
+
+.setting-number input:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}
+
+.setting-number input[disabled] {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.setting-number .unit {
+  min-inline-size: calc(var(--cell) * 1.5);
+  color: var(--fg-muted);
+  font-size: var(--fs-small);
+}
+
+/* D13.5: the font list. A native `<details>` so it is closed by default, a
+   checkbox per family (all checked on first run), and its own scroll container
+   so a machine with 300 fonts cannot make the dialog taller than the viewport. */
+.font-picker {
+  margin-block-start: 0;
+  padding-inline-start: var(--cell);
+}
+
+.font-picker > summary {
+  display: flex;
+  align-items: center;
+  min-height: calc(var(--cell) * 2);
+  cursor: pointer;
+  list-style: none;
+}
+
+.font-picker > summary::-webkit-details-marker {
+  display: none;
+}
+
+.font-picker > summary::before {
+  content: "△";
+  display: inline-block;
+  width: calc(var(--cell) * 1.5);
+  color: var(--fg-muted);
+}
+
+.font-picker[open] > summary::before {
+  content: "▽";
+}
+
+.font-list {
+  max-height: calc(var(--cell) * 8);
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding-block: var(--cell);
+}
+
+.font-list label {
+  display: flex;
+  align-items: center;
+  gap: var(--cell);
+  min-height: calc(var(--cell) * 1.5);
+  cursor: pointer;
+}
+
+.font-list input {
+  inline-size: calc(var(--cell) * 1.25);
+  block-size: calc(var(--cell) * 1.25);
+  margin: 0;
+  accent-color: var(--fg);
+  cursor: pointer;
+}
+
+.font-note {
+  font-size: var(--fs-small);
+  line-height: var(--cell);
+  color: var(--fg-muted);
+  padding-block-end: 0;
+}
+
+.text-button {
+  height: calc(var(--cell) * 2);
+  padding: 0 var(--cell);
+  font: inherit;
+  font-size: var(--fs-small);
+  color: var(--fg-muted);
+  background: none;
+  border: 1px solid var(--rule);
+  border-radius: 0;
+  cursor: pointer;
+}
+
+.text-button:hover {
+  color: var(--fg);
+  border-color: currentColor;
+}
+
+/* D15.1: settings labels. In the multilingual view every language sits in one
+   fused label, separated by a slash, on the same one-cell line box as the rest
+   of the panel. A chosen global language is selected by the generated rules
+   (`html[data-mode="single"][data-lang=…] .ui-label`), so no script has to
+   rewrite the panel. The fused text has no hover treatment of its own and the
+   pointer cannot select it. */
+.ui-label-group {
+  display: block;
+  min-width: 0;
+  font-size: var(--fs-small);
+  line-height: var(--cell);
+  color: var(--fg);
+}
+
+.ui-label {
+  display: inline;
+}
+
+.ui-label + .ui-label::before {
+  content: " / ";
+  color: var(--fg-muted);
+}
+
+html[data-mode="multi"] .ui-label-group {
+  pointer-events: none;
+  -webkit-text-stroke-width: 0;
+}
+
+/* D15.1: in the fused settings view the label text is display only. The row is
+   a <label>, so disabling its pointer events (while re-enabling the input
+   itself) is what makes a click on the text do nothing instead of toggling the
+   control behind it. In a single-language view the text stays a normal label. */
+html[data-mode="multi"] .setting {
+  pointer-events: none;
+  cursor: default;
+}
+
+html[data-mode="multi"] .setting > input {
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+html[data-mode="multi"] .setting-number label {
+  pointer-events: none;
+}
+
+html[data-mode="single"] .ui-label-group .ui-label::before {
+  content: none;
+}
+
+/* A setting's own text is the control's label; in the fused view the shared
+   block is a display, not a second hover target. */
+html[data-mode="multi"] .setting:hover .ui-label-group,
+html[data-mode="multi"] .setting-number:hover .ui-label-group {
+  -webkit-text-stroke-width: 0;
+}
+
+/* D11.9, bold: a text stroke, never a weight change — it cannot reflow a line or
+   invalidate the measured ink of a glyph. */
+html[data-hover-bold="1"] :is(a, button, .setting):hover {
+  -webkit-text-stroke: 0.02em currentColor;
+}
+
+/* D13.2: the duration setting drives the stroke on controls too, so a link's
+   bold fades in with the same timing as a title's. */
+:is(a, button, .setting) {
+  transition: -webkit-text-stroke-width var(--dur) var(--ease);
+}
+
+/* ============================================================================
+   Adaptation
+   ========================================================================= */
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur: 1ms;
+  }
+
+  .cell,
+  .line {
+    transition: opacity 1ms linear;
+  }
+}
+
+@media (forced-colors: active) {
+  main::before,
+  main::after,
+  .portrait {
+    display: none;
+  }
+
+  .pick[aria-current="true"],
+  .line[aria-expanded="true"] {
+    border-color: Highlight;
+  }
+}
+
+@media print {
+  .bar,
+  .widget,
+  .controls,
+  .portrait,
+  .skip-link {
+    display: none;
+  }
+
+  body {
+    padding-block-start: 0;
+  }
+
+  main::before,
+  main::after {
+    display: none;
+  }
+
+  .body {
+    display: block;
+    break-inside: avoid;
+  }
+
+  /* The widget is hidden in print, so the plain headings must come back even
+     though they are screen-reader-only on screen (D11.4/D11.5). */
+  html[data-js="1"] .section-title {
+    position: static;
+    width: auto;
+    height: auto;
+    margin: 0 0 var(--cell);
+    overflow: visible;
+    clip-path: none;
+    white-space: normal;
+  }
+}
+
+/* ============================================================================
+   Debug overlay (R8) — off by default, zero nodes and zero paint while off.
+   Levels: `cells` | `boxes` | `all`. Switched on with ?debug=, remembered in
+   localStorage['home.debug'], or poked live from the console:
+     document.documentElement.dataset.debug = "boxes"
+   ========================================================================= */
+
+html[data-debug="cells"] main::after,
+html[data-debug="boxes"] main::after,
+html[data-debug="all"] main::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  pointer-events: none;
+  background-image: linear-gradient(to right, rgba(255, 0, 128, 0.35) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 0, 128, 0.35) 1px, transparent 1px);
+  background-size: var(--cell) var(--cell);
+  /* Same phase as the lattice (D12.2): the overlay and the dots must not
+     disagree with the boxes either. */
+  background-position: var(--grid-phase) 0;
+}
+
+/* `boxes` and up emphasise the lattice vertices themselves (§9.8.1), so a dot can
+   be compared with the box corner it is supposed to sit under. */
+html[data-debug="boxes"] main::before,
+html[data-debug="all"] main::before {
+  background-image: radial-gradient(circle at 0 0, rgba(255, 0, 128, 0.85) 2px, transparent 2.5px);
+}
+
+html[data-debug="boxes"] .box,
+html[data-debug="all"] .box {
+  outline: 1px dashed rgba(255, 0, 128, 0.8);
+}
+
+/* The label sits at the region's own top-left corner, and is counter-scaled so
+   a stretched glyph does not stretch the text that measures it. */
+html[data-debug="boxes"] .box::after,
+html[data-debug="all"] .box::after {
+  content: attr(data-size);
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-start: 0;
+  font-size: 9px;
+  line-height: 1;
+  white-space: pre;
+  color: #ff0080;
+  background: var(--bg);
+  transform: scale(calc(1 / var(--sx)), calc(1 / var(--sy)));
+  transform-origin: 0 0;
+}
+
+/* `all` draws a box's available region (R4) and the ink box the fit produced
+   (R3/R5). They must coincide: if the blue outline is not sitting exactly on the
+   red one, the metrics or the fit are wrong. */
+html[data-debug="all"] .box::before,
+html[data-debug="all"] .gl::before {
+  content: "";
+  position: absolute;
+  pointer-events: none;
+}
+
+html[data-debug="all"] .box::before {
+  inset-block-start: calc((var(--fi) + var(--mv)) * var(--cell));
+  inset-inline-start: calc((var(--fi) + var(--mw)) * var(--cell));
+  width: calc((var(--rw) - 2 * (var(--fi) + var(--mw))) * var(--cell));
+  height: calc((var(--rh) - 2 * (var(--fi) + var(--mv))) * var(--cell));
+  outline: 1px solid rgba(255, 0, 128, 0.9);
+}
+
+/* Inside `.gl` the ink box is drawn in the glyph's own untransformed coordinates;
+   the `.gl` transform (translate + stretch) carries it onto the painted ink. */
+html[data-debug="all"] .gl::before {
+  inset-block-start: calc((var(--ky) - (var(--inkh) * var(--f)) / 2) * var(--cell));
+  inset-inline-start: calc((var(--kx) - (var(--inkw) * var(--f)) / 2) * var(--cell));
+  width: calc(var(--inkw) * var(--f) * var(--cell));
+  height: calc(var(--inkh) * var(--f) * var(--cell));
+  outline: 1px solid rgba(0, 128, 255, 0.9);
+}
