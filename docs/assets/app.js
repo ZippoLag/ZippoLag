@@ -32,18 +32,28 @@
 
   /* D13.1–D13.5: one settings object, read from localStorage before anything
      else so every handler sees the same values the boot script painted with. */
+  // D16.5: the shipped defaults. The generator emits the same object in the
+  // settings markup, the boot script and `cfg.defaults`, so the panel, the page
+  // before first paint and this runtime cannot disagree. `fonts` is a runtime
+  // field (null = every available family) and is not part of the shipped object.
   var SETTING_DEFAULTS = {
     grow: true,
     bold: true,
-    wave: false,
+    wave: true,
     waveDelay: 200,
     duration: 400,
     reserve: true,
-    scale: 2,
-    fontscroll: false,
+    scale: 1.1,
+    fontscroll: true,
+    verticalJa: false,
     fonts: null,
     font: "mono",
   };
+  for (var defaultKey in cfg.defaults || {}) {
+    if (Object.prototype.hasOwnProperty.call(SETTING_DEFAULTS, defaultKey)) {
+      SETTING_DEFAULTS[defaultKey] = cfg.defaults[defaultKey];
+    }
+  }
   var settings = readSettings();
 
   /* ----------------------------------------------------------------- helpers */
@@ -164,6 +174,7 @@
     } else {
       showNote("");
     }
+    showFontStatus();
 
     if (options.announce) {
       announce(
@@ -172,6 +183,9 @@
           : t("announceAllLanguages", def),
       );
     }
+    // D18.9: a reader who lands in the multilingual view hears the notice once,
+    // politely. It is never repeated, and `?lang=xx` never says it at all.
+    if (options.notice && state.mode === "multi") announce(t("multiNotice", labelLang));
     if (options.push) pushUrl(active);
   }
 
@@ -210,7 +224,8 @@
       body.dataset.active = "false";
     });
     Array.prototype.forEach.call(lines(), function (line) {
-      line.setAttribute("aria-expanded", "false");
+      // D16.8: a dialog-opening line has no expanded state to report.
+      if (line.hasAttribute("aria-controls")) line.setAttribute("aria-expanded", "false");
     });
     Array.prototype.forEach.call(document.querySelectorAll(".widget"), function (widget) {
       widget.removeAttribute("data-selected");
@@ -242,7 +257,7 @@
     });
     Array.prototype.forEach.call(lines(), function (line) {
       var on = line.dataset.section === sectionId && line.dataset.language === lang;
-      line.setAttribute("aria-expanded", on ? "true" : "false");
+      if (line.hasAttribute("aria-controls")) line.setAttribute("aria-expanded", on ? "true" : "false");
       if (on) line.tabIndex = 0;
     });
     Array.prototype.forEach.call(document.querySelectorAll(".widget"), function (widget) {
@@ -368,6 +383,13 @@
       widgetLines(widget).forEach(function (other) {
         other.tabIndex = other === line ? 0 : -1;
       });
+      // D16.8: a line either expands the teaser in place or opens the section's
+      // one-language dialog; the dialog path never touches `state.open`.
+      if (line.dataset.dialog) {
+        var dialog = document.getElementById(line.dataset.dialog);
+        if (dialog) openDialog(dialog, line.dataset.language, line);
+        return;
+      }
       openSection(line.dataset.section, line.dataset.language);
     });
 
@@ -520,7 +542,9 @@
     var expand = event.target.closest ? event.target.closest("[data-dialog]") : null;
     if (expand) {
       var dialog = document.getElementById(expand.dataset.dialog);
-      if (dialog) openDialog(dialog, expand.dataset.language, expand);
+      // A title line handles its own dialog in the widget's click handler; this
+      // guard stops the same click from opening (and re-opening) it twice.
+      if (dialog && !dialog.open) openDialog(dialog, expand.dataset.language, expand);
       return;
     }
     var close = event.target.closest ? event.target.closest(".dlg-close") : null;
@@ -587,7 +611,14 @@
       if (options.scroll) scrollToSection(hit.section);
       return;
     }
-    openSection(hit.section, hit.lang, { force: true, silent: !options.announce });
+    // D16.8: a dialog-action section opens its modal instead of the accordion.
+    var section = sectionOf(hit.section);
+    if (section && section.action === "dialog") {
+      var dialog = document.getElementById("d-" + hit.section);
+      if (dialog) openDialog(dialog, hit.lang, null);
+    } else {
+      openSection(hit.section, hit.lang, { force: true, silent: !options.announce });
+    }
     if (options.scroll) scrollToSection(hit.section);
   }
 
@@ -627,14 +658,14 @@
     if (saved && typeof saved === "object") {
       if (saved.grow === false) next.grow = false;
       if (saved.bold === false) next.bold = false;
-      if (saved.wave === true) next.wave = true;
+      if (typeof saved.wave === "boolean") next.wave = saved.wave;
       if (saved.reserve === false) next.reserve = false;
-      if (saved.fontscroll === true) next.fontscroll = true;
+      if (typeof saved.fontscroll === "boolean") next.fontscroll = saved.fontscroll;
+      if (saved.verticalJa === true) next.verticalJa = true;
       if (Number.isFinite(saved.waveDelay)) next.waveDelay = saved.waveDelay;
       if (Number.isFinite(saved.duration)) next.duration = saved.duration;
       if (Number.isFinite(saved.scale)) next.scale = saved.scale;
       if (Array.isArray(saved.fonts)) next.fonts = saved.fonts.filter(function (name) { return typeof name === "string" && name.length; });
-      if (saved.font === "prop" || saved.font === "serif") next.font = saved.font;
     }
     return sanitizeSettings(next);
   }
@@ -649,14 +680,15 @@
     return {
       grow: next.grow !== false,
       bold: next.bold !== false,
-      wave: next.wave === true,
+      wave: next.wave !== false,
       waveDelay: Math.round(clampNumber(next.waveDelay, 0, 2000, 200) / 10) * 10,
       duration: Math.round(clampNumber(next.duration, 0, 2000, 400) / 10) * 10,
       reserve: next.reserve !== false,
-      scale: Math.round(clampNumber(next.scale, 1.25, 3, 2) * 4) / 4,
-      fontscroll: next.fontscroll === true,
+      // D16.3: any decimal in 1…3, kept to three places (no quarter snapping).
+      scale: Math.round(clampNumber(next.scale, 1, 3, 1.1) * 1000) / 1000,
+      fontscroll: next.fontscroll !== false,
+      verticalJa: next.verticalJa === true,
       fonts: Array.isArray(next.fonts) ? next.fonts.slice() : null,
-      font: next.font === "prop" || next.font === "serif" ? next.font : "mono",
     };
   }
 
@@ -667,6 +699,7 @@
       ["setting-wave", "wave"],
       ["setting-reserve", "reserve"],
       ["setting-fontscroll", "fontscroll"],
+      ["setting-vertical-ja", "verticalJa"],
     ];
     values.forEach(function (pair) {
       var input = document.getElementById(pair[0]);
@@ -707,7 +740,7 @@
     root.dataset.wave = settings.wave ? "1" : "0";
     root.dataset.hoverReserve = settings.reserve ? "1" : "0";
     root.dataset.fontscroll = settings.fontscroll ? "1" : "0";
-    root.dataset.font = settings.font === "prop" || settings.font === "serif" ? settings.font : "mono";
+    root.dataset.verticalJa = settings.verticalJa ? "1" : "0";
     root.style.setProperty("--dur-user", settings.duration + "ms");
     root.style.setProperty("--wave-step", settings.waveDelay + "ms");
     applyScale();
@@ -738,7 +771,11 @@
       fit = (content / (2 * cell) + cols / 2 - spaces) / letters;
     }
     var effective = Math.max(1, Math.min(settings.scale, fit));
-    root.style.setProperty("--hover-scale", String(Math.round(effective * 100) / 100));
+    root.style.setProperty("--hover-scale", String(Math.round(effective * 1000) / 1000));
+    // D16.2: the stack reserves a shoulder/gap only when the growth can overflow
+    // a one-row line by at least half a row. At 1.1 nothing is reserved.
+    var room = settings.grow && settings.reserve && effective - 1 >= 0.5 ? "1" : "0";
+    if (root.dataset.stackRoom !== room) root.dataset.stackRoom = room;
   }
 
   window.addEventListener("resize", applyScale);
@@ -758,8 +795,7 @@
     var key = input.dataset.setting;
     var next = {};
     for (var name in settings) next[name] = settings[name];
-    if (key === "font") next.font = input.value === "prop" || input.value === "serif" ? input.value : "mono";
-    else if (input.type === "checkbox") next[key] = input.checked;
+    if (input.type === "checkbox") next[key] = input.checked;
     else if (input.type === "number") {
       var value = Number(input.value);
       if (!Number.isFinite(value)) {
@@ -938,20 +974,43 @@
     });
   }
 
+  /* D16.9: the Scan button always reports an outcome, so it can never look
+     inert. `fontStatus` is kept so switching the page language re-localizes the
+     message instead of leaving the old language's sentence behind. */
+  var fontStatus = { key: "fontsNote", count: 0 };
+
+  function labelLanguage() {
+    return state.mode === "single" ? state.lang : def;
+  }
+
+  function showFontStatus() {
+    var note = document.getElementById("font-note");
+    if (!note) return;
+    note.textContent = template(t(fontStatus.key, labelLanguage()), { count: fontStatus.count });
+  }
+
+  function setFontStatus(key, count) {
+    fontStatus = { key: key, count: count || 0 };
+    showFontStatus();
+  }
+
   function scanFonts(force) {
     if (fontsScanned && !force) return;
     fontsScanned = true;
-    var note = document.getElementById("font-note");
-    var labelLang = state.mode === "single" ? state.lang : def;
     if (!navigator.queryLocalFonts) {
-      if (note) note.textContent = t("fontsFallback", labelLang);
+      setFontStatus("fontsFallback", 0);
       return;
     }
+    setFontStatus("fontsNote", 0);
     var request;
     try {
       request = navigator.queryLocalFonts();
     } catch (e) {
-      if (note) note.textContent = t("fontsFallback", labelLang);
+      setFontStatus("fontsFallback", 0);
+      return;
+    }
+    if (!request || typeof request.then !== "function") {
+      setFontStatus("fontsFallback", 0);
       return;
     }
     request.then(
@@ -972,10 +1031,11 @@
         settings.fonts = settings.fonts === null ? null : settings.fonts.concat(missing);
         renderFontList();
         persistSettings();
-        announce(t("fontsScan", labelLang) + " — " + availableFonts.length);
+        setFontStatus(families.length ? "fontsFound" : "fontsFallback", availableFonts.length);
+        announce(template(t("fontsFound", labelLanguage()), { count: availableFonts.length }));
       },
       function () {
-        if (note) note.textContent = t("fontsFallback", labelLang);
+        setFontStatus("fontsFallback", 0);
       },
     );
   }
@@ -994,7 +1054,7 @@
       var picked = all.filter(function (node) { return node.checked; }).map(function (node) { return node.value; });
       settings = sanitizeSettings(Object.assign({}, settings, { fonts: picked.length === all.length ? null : picked }));
       persistSettings();
-      announce(input.value + (input.checked ? " — on" : " — off"));
+      announce(template(t(input.checked ? "fontOn" : "fontOff", labelLanguage()), { font: input.value }));
     });
   }
   var fontScan = document.getElementById("font-scan");
@@ -1003,13 +1063,219 @@
       scanFonts(true);
     });
 
+  /* ------------------------------------------------- content tokens (D17.2/D17.3) */
+
+  /* The generator already parsed every token and handed the runtime numbers:
+     a time option carries the interval of the day it covers (`data-from`/
+     `data-to`, minutes), a markee its interval in milliseconds and its mode. No
+     syntax is re-parsed here, so build and browser cannot disagree. */
+
+  var clockPin = null;
+  try {
+    var clockMatch = location.search.match(/[?&]clock=(\d{1,4})/);
+    if (clockMatch) {
+      var clockText = ("000" + clockMatch[1]).slice(-4);
+      var clockHours = parseInt(clockText.slice(0, 2), 10);
+      var clockMinutes = parseInt(clockText.slice(2), 10);
+      if (clockHours < 24 && clockMinutes < 60) clockPin = clockHours * 60 + clockMinutes;
+    }
+  } catch (e) {
+    clockPin = null;
+  }
+
+  /** Minutes of the day, from the reader's clock (or `?clock=HHMM` when pinned). */
+  function minutesNow() {
+    if (clockPin !== null) return clockPin;
+    var date = new Date();
+    return date.getHours() * 60 + date.getMinutes();
+  }
+
+  var timeTokens = [];
+  var timeTimer = null;
+
+  function resolveTimes() {
+    var minutes = minutesNow();
+    for (var i = 0; i < timeTokens.length; i += 1) {
+      var token = timeTokens[i];
+      var alts = token.children;
+      var pick = null;
+      for (var j = 0; j < alts.length; j += 1) {
+        var from = Number(alts[j].getAttribute("data-from"));
+        var to = Number(alts[j].getAttribute("data-to"));
+        if (minutes >= from && minutes < to) {
+          pick = alts[j];
+          break;
+        }
+      }
+      // No option matches and none is unconditional: the first option is the
+      // text, which is also what the no-JS page shows — never an empty sentence.
+      if (!pick && alts.length) pick = alts[0];
+      for (var k = 0; k < alts.length; k += 1) {
+        if (alts[k] === pick) {
+          alts[k].setAttribute("data-on", "");
+          alts[k].removeAttribute("aria-hidden");
+        } else {
+          alts[k].removeAttribute("data-on");
+          alts[k].setAttribute("aria-hidden", "true");
+        }
+      }
+      token.setAttribute("data-ready", "");
+    }
+    root.setAttribute(
+      "data-clock",
+      ("0" + Math.floor(minutes / 60)).slice(-2) + ("0" + (minutes % 60)).slice(-2),
+    );
+  }
+
+  function startTimes() {
+    var nodes = document.querySelectorAll(".tok-time");
+    for (var i = 0; i < nodes.length; i += 1) timeTokens.push(nodes[i]);
+    if (!timeTokens.length) return;
+    resolveTimes();
+    // Wake exactly on the next minute boundary rather than polling: the greeting
+    // turns over at 12:01:00, not up to half a minute later. A pinned `?clock` is
+    // a still preview, so it needs no timer at all.
+    function scheduleTime() {
+      if (clockPin !== null) return;
+      var now = new Date();
+      var delay = (60 - now.getSeconds()) * 1000 - now.getMilliseconds() + 50;
+      if (delay < 200) delay = 200;
+      timeTimer = window.setTimeout(function () {
+        resolveTimes();
+        scheduleTime();
+      }, delay);
+    }
+    scheduleTime();
+    document.addEventListener("home:time", resolveTimes);
+    // A laptop that slept may have crossed several boundaries: resolve again on
+    // return, which is idempotent, and re-arm the boundary timer.
+    document.addEventListener("visibilitychange", function () {
+      if (document.hidden) return;
+      resolveTimes();
+      window.clearTimeout(timeTimer);
+      scheduleTime();
+    });
+  }
+
+  var markees = [];
+  var markeeTimer = null;
+
+  function shuffledOrder(length, avoid) {
+    var order = [];
+    for (var i = 0; i < length; i += 1) order.push(i);
+    for (var j = length - 1; j > 0; j -= 1) {
+      var pick = Math.floor(Math.random() * (j + 1));
+      var swap = order[j];
+      order[j] = order[pick];
+      order[pick] = swap;
+    }
+    // A new cycle must not open with the option that just left the stage.
+    if (order.length > 1 && order[0] === avoid) {
+      var other = 1 + Math.floor(Math.random() * (order.length - 1));
+      var keep = order[0];
+      order[0] = order[other];
+      order[other] = keep;
+    }
+    return order;
+  }
+
+  function advanceMarkee(markee, now) {
+    var next = markee.mode === "shuffle" ? markee.bag.shift() : (markee.index + 1) % markee.alts.length;
+    if (next == null) return;
+    if (!markee.bag.length) markee.bag = shuffledOrder(markee.alts.length, next);
+    var current = markee.alts[markee.index];
+    var incoming = markee.alts[next];
+    if (current && current !== incoming) {
+      current.classList.remove("is-on");
+      current.classList.add("is-out");
+      current.setAttribute("aria-hidden", "true");
+      window.setTimeout(function () {
+        current.classList.remove("is-out");
+      }, 600);
+    }
+    incoming.classList.remove("is-out");
+    // Force the entering text back to its start position, or a fast second swap
+    // would interrupt a transition that never left.
+    void incoming.offsetWidth;
+    incoming.classList.add("is-on");
+    incoming.removeAttribute("aria-hidden");
+    markee.index = next;
+    markee.step += 1;
+    if (markee.step >= markee.alts.length) {
+      markee.step = 0;
+      markee.cycle += 1;
+    }
+    // D17.3: the rotation reports where it is, the same way a time token reports
+    // the minute it resolved at — so the order is observable without guessing.
+    markee.node.setAttribute("data-step", String(markee.step));
+    markee.node.setAttribute("data-cycle", String(markee.cycle));
+    markee.due = now + markee.interval;
+  }
+
+  function tickMarkees() {
+    var now = Date.now();
+    for (var i = 0; i < markees.length; i += 1) {
+      if (now >= markees[i].due) advanceMarkee(markees[i], now);
+    }
+  }
+
+  function startMarkees() {
+    var nodes = document.querySelectorAll(".tok-markee");
+    for (var i = 0; i < nodes.length; i += 1) {
+      var node = nodes[i];
+      var alts = Array.prototype.slice.call(node.children);
+      if (alts.length < 2) continue;
+      var interval = parseInt(node.getAttribute("data-interval"), 10);
+      if (!(interval >= 300)) continue;
+      var markee = {
+        node: node,
+        alts: alts,
+        interval: interval,
+        mode: node.getAttribute("data-mode") === "shuffle" ? "shuffle" : "cycle",
+        index: 0,
+        step: 0,
+        cycle: 0,
+        bag: [],
+        due: Date.now() + interval,
+      };
+      // The option already on screen is step 0 of cycle 0, so the first bag must
+      // not offer it again: a cycle is a permutation of every option, including
+      // the one that was displayed when the page loaded.
+      markee.bag = shuffledOrder(alts.length, -1).filter(function (index) {
+        return index !== 0;
+      });
+      alts[0].classList.add("is-on");
+      alts[0].removeAttribute("aria-hidden");
+      node.setAttribute("data-step", "0");
+      node.setAttribute("data-cycle", "0");
+      node.setAttribute("data-ready", "");
+      markees.push(markee);
+    }
+    if (!markees.length) return;
+    markeeTimer = window.setInterval(tickMarkees, 200);
+    // A background tab must not burn through a cycle: the dwell restarts when the
+    // reader comes back, so the text they see is never mid-swap.
+    document.addEventListener("visibilitychange", function () {
+      if (document.hidden) {
+        window.clearInterval(markeeTimer);
+        markeeTimer = null;
+        return;
+      }
+      var now = Date.now();
+      for (var j = 0; j < markees.length; j += 1) markees[j].due = now + markees[j].interval;
+      if (!markeeTimer) markeeTimer = window.setInterval(tickMarkees, 200);
+    });
+  }
+
   /* ------------------------------------------------------------------- boot */
 
   applySettings(settings, {});
   syncSettings();
   renderFontList();
+  startTimes();
+  startMarkees();
   applyTheme();
-  applyLanguage(normalize(rawLang()), { announce: false });
+  applyLanguage(normalize(rawLang()), { announce: false, notice: true });
   applyHash({ scroll: false });
   void bar;
 })();

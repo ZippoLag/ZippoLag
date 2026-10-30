@@ -57,6 +57,70 @@
 @property --stack-room {
   syntax: "<number>";
   inherits: true;
+  initial-value: 0;
+}
+
+/* D16.6/D16.7: the orientation flags. `--vja` is the user setting (vertical
+   Japanese in the stacked view), `--vf`/`--vs` are the block's own fused and
+   stacked orientations, and `--swapE` is the axis swap the current state uses.
+   `--rwE`/`--rhE` are the region's width and height after that swap. */
+@property --vja {
+  syntax: "<number>";
+  inherits: true;
+  initial-value: 0;
+}
+
+@property --vf {
+  syntax: "<number>";
+  inherits: true;
+  initial-value: 0;
+}
+
+@property --vs {
+  syntax: "<number>";
+  inherits: true;
+  initial-value: 0;
+}
+
+@property --swapE {
+  syntax: "<number>";
+  inherits: true;
+  initial-value: 0;
+}
+
+@property --rwE {
+  syntax: "<number>";
+  inherits: true;
+  initial-value: 1;
+}
+
+@property --rhE {
+  syntax: "<number>";
+  inherits: true;
+  initial-value: 1;
+}
+
+@property --ysH {
+  syntax: "<number>";
+  inherits: true;
+  initial-value: 1;
+}
+
+@property --xsH {
+  syntax: "<number>";
+  inherits: true;
+  initial-value: 0;
+}
+
+@property --lw {
+  syntax: "<number>";
+  inherits: true;
+  initial-value: 1;
+}
+
+@property --lh {
+  syntax: "<number>";
+  inherits: true;
   initial-value: 1;
 }
 
@@ -149,8 +213,12 @@
   /* R4: how much of a box a glyph may fill, per authored block size, as a
      fraction of a cell. `0` is legal; these are the one global dial, and the
      generator maps each authored size onto its key. */
-  --fit-inset: 0;
-  --fit-inset-1x1: 0.04;
+  /* D16.10: one inset for every authored box size. A per-size inset made a 2×2
+     box's border gap differ from a 1×1 box's, which is exactly the fused-view
+     misalignment (a)–(e) the owner reported; the size-keyed dial is still
+     available (`--fit-inset-<w>x<h>`) but all its defaults agree. */
+  --fit-inset: 0.04;
+  --fit-inset-1x1: var(--fit-inset);
   --fit-inset-2x1: var(--fit-inset);
   --fit-inset-1x2: var(--fit-inset);
   --fit-inset-2x2: var(--fit-inset);
@@ -190,23 +258,12 @@
   /* --- type ------------------------------------------------------------- */
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono",
     "Courier New", monospace;
-  /* D11.8: the proportional face the settings panel can switch to. It is
-     measured separately (glyph-metrics.json, glyphs.prop), so the fit stays
-     exact in either mode. */
-  --font-prop: "Helvetica Neue", Helvetica, Arial, "Liberation Sans", system-ui,
-    sans-serif;
-  /* D15.3: the third design font pairs the proportional latin face with a
-     mincho/japanese serif, so the setting changes both scripts at once. */
-  --font-serif: Georgia, "Iowan Old Style", "Times New Roman", "Liberation Serif", serif;
+  /* D18.1: one typeface. The design-font setting (and with it the proportional
+     and serif stacks) was withdrawn; `--font-mono` + `--font-cjk` are the two
+     stacks the fit is measured against, and `glyph-metrics.json` carries that one
+     table. */
   --font-cjk: "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic",
     "Noto Sans JP", "Noto Sans CJK JP", "Source Han Sans JP", sans-serif;
-  /* D15.3: a second Japanese gothic for the proportional design font, so every
-     mode moves both scripts (mono = gothic, prop = rounded gothic, serif =
-     mincho), not just the latin face. */
-  --font-cjk-prop: "Hiragino Maru Gothic ProN", "Hiragino Kaku Gothic ProN",
-    "Yu Gothic", "Noto Sans JP", "Source Han Sans JP", sans-serif;
-  --font-cjk-serif: "Hiragino Mincho ProN", "Yu Mincho", "Noto Serif JP",
-    "Source Han Serif JP", "Noto Serif CJK JP", serif;
   --font-latin: var(--font-mono);
   --fs-body: clamp(12px, calc(var(--cell) * 0.55), 17px);
   --fs-small: clamp(11px, calc(var(--cell) * 0.45), 14px);
@@ -220,15 +277,16 @@
   /* D11.9/D13.3–D13.4: the hover effects are switches; bold, growth, space
      reservation, the growth factor and the wave stagger are independent dials. */
   --hover-grow: 1;
-  --hover-scale: 2;
+  --hover-scale: 1.1;
   --hover-reserve: 1;
-  --stack-room: 1;
+  --stack-room: 0;
   --wave-step: 200ms;
+  --vja: 0;
 
   /* --- palette (D2.4 monochrome) ---------------------------------------- */
   --bg: #fffff0; /* ivory */
   --fg: #15202b; /* charcoal */
-  --fg-muted: #55606c; /* 6.4:1 on ivory, 4.75:1 over the portrait's darkest cell */
+  --fg-muted: #55606c; /* 6.4:1 on ivory; never set over the portrait's plate (D18.5) */
   --rule: rgba(21, 32, 43, 0.16);
   --dot: rgba(21, 32, 43, 0.22); /* decorative, deliberately below 3:1 */
 }
@@ -236,21 +294,9 @@
 html[data-theme="dark"] {
   --bg: #15202b;
   --fg: #fffff0;
-  --fg-muted: #b8c2ca; /* 9.1:1 on charcoal, 4.78:1 over the portrait's lightest cell */
+  --fg-muted: #b8c2ca; /* 9.1:1 on charcoal; never set over the portrait's plate (D18.5) */
   --rule: rgba(255, 255, 240, 0.18);
   --dot: rgba(255, 255, 240, 0.2);
-}
-
-html[data-font="prop"] {
-  --font-latin: var(--font-prop);
-  --font-cjk: var(--font-cjk-prop);
-}
-
-/* D15.3: the design font changes the latin and japanese stacks together. The
-   measured metrics (content/glyph-metrics.json) carry one row per design font. */
-html[data-font="serif"] {
-  --font-latin: var(--font-serif);
-  --font-cjk: var(--font-cjk-serif);
 }
 
 html[data-hover-grow="0"] {
@@ -266,8 +312,22 @@ html[data-hover-reserve="0"] {
    the row is not re-laid — so both cases collapse the stacked view to its rows
    with no shoulder and no inter-line gap. */
 html[data-hover-grow="0"],
-html[data-hover-reserve="0"] {
+html[data-hover-reserve="0"],
+html[data-stack-room="0"] {
   --stack-room: 0;
+}
+
+/* D16.2: at a 1.1 growth there is nothing to reserve, so the stack is compact
+   by default. app.js and the boot script flip `data-stack-room` when the
+   factor is large enough for the growth to overflow a slot. */
+html[data-stack-room="1"]:not([data-hover-grow="0"]):not([data-hover-reserve="0"]) {
+  --stack-room: 1;
+}
+
+/* D16.6: vertical Japanese is a stacked-view layout, and only in the
+   multilingual view. */
+html[data-vertical-ja="1"][data-mode="multi"] {
+  --vja: 1;
 }
 
 /* D13.1: a modal freezes the page behind it at its resting 1×1 state — no
@@ -399,7 +459,10 @@ a:hover {
 .portrait {
   position: fixed;
   inset: 0;
-  z-index: 0;
+  /* D18.6: above the lattice pseudo-element (`main::before`, z-index 0) and
+     below the content (`main > *` shares 1 and comes later in the DOM), so the
+     picture hides the dots it covers instead of showing them through. */
+  z-index: 1;
   display: flex;
   align-items: flex-end;
   justify-content: center;
@@ -419,7 +482,6 @@ a:hover {
   grid-template-columns: repeat(var(--portrait-cols, 20), var(--cell));
   grid-template-rows: repeat(var(--portrait-rows, 17), var(--cell));
   color: var(--fg);
-  opacity: 0.14;
   font-family: var(--font-mono);
   font-size: calc(var(--cell) * 1.45);
   line-height: 1;
@@ -437,19 +499,41 @@ a:hover {
   line-height: var(--cell);
 }
 
-html[data-theme="dark"] .portrait-grid {
+/* D18.3/D18.5: one opacity hook per tone. `mono` is the faint stencil; `gray`
+   carries levels, so it can be the most present print; `color` needs 0.45 on the
+   ivory paper to read at all (0.3 was a smudge) and 0.45 is a ceiling — over the
+   field's darkest cell it leaves the body ink at ~4.9:1; `ascii` sits between.
+   The values are asserted by `portrait.grid`. */
+.portrait[data-tone="mono"] .portrait-grid {
+  opacity: 0.14;
+}
+
+html[data-theme="dark"] .portrait[data-tone="mono"] .portrait-grid {
   opacity: 0.2;
 }
 
-/* D14.2: the colour tone has its own per-cell foreground and background, so the
-   layer only has to stay a faint print. It needs more than the mono 0.14 to read
-   as colour at all, but still well below the body text: this is decor. */
+.portrait[data-tone="gray"] .portrait-grid {
+  opacity: 0.5;
+}
+
+html[data-theme="dark"] .portrait[data-tone="gray"] .portrait-grid {
+  opacity: 0.38;
+}
+
 .portrait[data-tone="color"] .portrait-grid {
-  opacity: 0.3;
+  opacity: 0.45;
 }
 
 html[data-theme="dark"] .portrait[data-tone="color"] .portrait-grid {
   opacity: 0.4;
+}
+
+.portrait[data-tone="ascii"] .portrait-grid {
+  opacity: 0.4;
+}
+
+html[data-theme="dark"] .portrait[data-tone="ascii"] .portrait-grid {
+  opacity: 0.34;
 }
 
 /* The decorative lattice: one faint dot per grid vertex (D2.3, R7).
@@ -473,7 +557,9 @@ main::before {
   inset: 0;
   z-index: 0;
   pointer-events: none;
-  background-image: radial-gradient(circle at 0 0, var(--dot) 1px, transparent 1.5px);
+  /* D18.6: 1.5px radius (3px across at 1×), 50% larger than the 1px dot of R7's
+     first implementation; the fade ends at 1.5 × that, so the dot stays round. */
+  background-image: radial-gradient(circle at 0 0, var(--dot) 1.5px, transparent 2.25px);
   background-size: var(--cell) var(--cell);
   background-position: var(--grid-phase) 0;
 }
@@ -661,6 +747,13 @@ html[data-js="1"] .noscript {
   display: none;
 }
 
+/* D18.9: the multilingual-view notice for screen readers. It is `sr-only` in the
+   multilingual view only: as soon as one language is chosen it has no box, is not
+   described by anything and takes no part in the reading order. */
+html[data-mode="single"] .multi-notice {
+  display: none;
+}
+
 /* -------------------------------------------------------------------- bar */
 
 .site-head {
@@ -733,28 +826,68 @@ html[data-js="1"] .section-title {
      number. The width compensates for it in the fused view only, so the stacking
      transition stays a transform with no layout (§8.8). */
   --st: 0; /* 0 = fused (resting), 1 = stacked */
+  /* D16.13: the cells a one-row hot line needs above its own slot — what the
+     rows below it are pushed by while the stack is compact. A taller line gets a
+     `--d-<code>` of its own from the generator. */
+  --d: max(0, calc((var(--hover-scale, 1.1) - 1) - var(--stack-room, 0)));
   --fgw: clamp(
     1,
     max(var(--fused-glyph-width, 1), var(--fused) * var(--fused-glyph-square, 0)),
     var(--fused)
   );
   position: relative;
-  width: calc((var(--cols) + (var(--fgw) - 1) * (1 - var(--st))) * var(--cell));
-  /* D15.6: at rest the box is exactly the fused block plus the shoulder the hot
-     growth needs (none when grow/reserve is off) — not the whole stacked view.
-     Hovering expands it to the stacked height with the same duration, so the
-     blocks sit tight in the fused view and the stack has all its rows. */
-  --stack-h: calc(
-    (var(--rows0, var(--rows)) + (var(--rows) - var(--rows0, var(--rows))) * var(--stack-room)) *
-      var(--cell)
+  /* D16.6/D16.7: the effective stacking extents. Row counts follow the vertical
+     Japanese toggle; the widget's width and height follow the orientation of
+     each state, so a vertical block is its horizontal block transposed. The
+     toggle is a *stacked* layout, so a block that stacks vertically already has
+     the band in columns and ignores it. */
+  --vjaOn: calc(var(--vja) * (1 - var(--vs)));
+  --rowsE: calc(var(--rows) * (1 - var(--vjaOn)) + var(--rowsv, var(--rows)) * var(--vjaOn));
+  --rows0E: calc(var(--rows0, var(--rows)) * (1 - var(--vjaOn)) + var(--rows0v, var(--rows0, var(--rows))) * var(--vjaOn));
+  --rowsRoom: calc(var(--rows0E) + (var(--rowsE) - var(--rows0E)) * var(--stack-room));
+  /* D16.2: the widget's box is the union of its two states, not the state
+     it is in. The fused block and the stacked lines have different extents
+     (three latin bands beside a composed square versus four language rows), so
+     interpolating the box made the page reflow on every hover. Taking the max
+     per axis, in the block's current orientation, means swapping fused ↔ stacked
+     moves the text inside the same box: the resting view leaves the extra
+     row/column blank, which is the price of a stable page. */
+  --wFmax: calc(
+    (var(--cols) + var(--fgw) - 1) * (1 - var(--vf)) +
+      (var(--fused) + var(--fgw) - 1) * var(--vf)
   );
-  height: calc((var(--fused) + var(--pad, 1) * var(--stack-room)) * var(--cell));
-  transition: height var(--dur) var(--ease);
+  --hFmax: calc(var(--fused) * (1 - var(--vf)) + (var(--cols) + var(--fgw) - 1) * var(--vf));
+  /* D16.13: `--push-room` is the growth the compact stack cannot give a hot row
+     for free. It is part of the box rather than a hover-time reflow, so the page
+     never moves when the pointer arrives. */
+  --wSmax: calc(var(--cols) * (1 - var(--vs)) + (var(--rowsRoom) + var(--push-room, 0)) * var(--vs));
+  /* A vertical stack is as tall as its longest line, not as wide as the grid:
+     transposing the *box* would reserve `cols` rows of blank below the block. */
+  --hSmax: calc((var(--rowsRoom) + var(--push-room, 0)) * (1 - var(--vs)) + var(--sw, var(--cols)) * var(--vs));
+  width: calc(max(var(--wFmax), var(--wSmax)) * var(--cell));
+  height: calc(max(var(--hFmax), var(--hSmax)) * var(--cell));
+  /* D16.13: the box only changes size while a row is hot (`--push-room` is 0 at
+     rest) and the change is deliberately not transitioned: the widget's own size
+     feeds `--cell`'s budget, so an animated box size can keep a scrollbar (and
+     therefore `100vw`) flip-flopping, and a transition that never settles stalls
+     every other animation on the page. The rows themselves still slide, because
+     their movement is a transform (D8.5). */
 }
 
 .widget[data-state="stacked"] {
   --st: 1;
-  height: var(--stack-h);
+}
+
+/* D16.13: the growth's room is fractional while the pointer is on the text — that
+   is exactly the overflow being pushed — so the block below follows it smoothly.
+   Once a body is open the block is on the page's grid again: the room is rounded
+   up to a whole cell, because an open body has to start on a whole cell (R2). */
+.widget {
+  --push-room: var(--push-need, 0);
+}
+
+.widget[data-selected] {
+  --push-room: round(up, var(--push-all, 0), 1);
 }
 
 .boxes,
@@ -773,6 +906,30 @@ html[data-js="1"] .section-title {
    `none` does not stop a child that asks for `auto`). */
 .boxes .box {
   pointer-events: auto;
+}
+
+/* D16.6/D16.7: the per-box flags that select a vertical band's column
+   position and the block's own orientations. */
+.box[data-vja="1"],
+.line[data-vja="1"] {
+  --isVja: 1;
+}
+
+.widget[data-fused-orientation="vertical"] {
+  --vf: 1;
+}
+
+/* D16.7: the fused-glyph-width dial widens a column grid horizontally. In a
+   vertical fused block the glyph columns run down the page, so the dial would
+   grow every glyph into the row below; there it is inert rather than a source of
+   overlap. */
+.widget[data-fused-orientation="vertical"] .box[data-block] {
+  --fdw: var(--fw);
+  --fshift: 0;
+}
+
+.widget[data-stacked-orientation="vertical"] {
+  --vs: 1;
 }
 
 /* Once stacked, the line buttons are the visible thing to click and the only
@@ -823,7 +980,10 @@ html[data-js="1"] .section-title {
   /* R12: the data width unless the generated CSS widens this band's glyphs. */
   --fdw: var(--fw);
   --fshift: 0;
-  /* D13.4: the growth factor is `--hover-scale` (2 by default), not a hard 2×.
+  /* D16.6: 1 only for a box of the vertical band, while vertical Japanese is
+     on and the stacked view is horizontal. */
+  --vjaBox: calc(var(--vja, 0) * var(--isVja, 0) * (1 - var(--vs, 0)));
+  /* D13.4/D16.3: the growth factor is `--hover-scale` (1.1 by default), not a hard 2×.
      `--grow` stays the 0/1 hot switch, so the region is `w × (1 + grow(scale−1))`. */
   --rw: calc(
     var(--fdw) + (var(--w) * (1 + var(--grow) * (var(--hover-scale) - 1)) - var(--fdw)) * var(--st)
@@ -844,6 +1004,16 @@ html[data-js="1"] .section-title {
      browser's own baseline placement is already inside --inky (measured from
      painted pixels), so no ascent/descent ever has to be trusted here. */
   --ky: calc(var(--f) * (var(--inky) + var(--inkh) / 2));
+  /* D16.12: the glyph is rasterised at the height it has to fill and squeezed
+     horizontally, never stretched vertically. `--sx`/`--sy` remain the *model*
+     (ink = region − inset), so this is a change of rasterisation, not of fit:
+     font-size carries the vertical factor and `scaleX` the remainder. A tall
+     region (a merged 1×3 letter, a hot box) would otherwise magnify the
+     rasteriser's own ±½px snapping by the vertical stretch — which is what made
+     a merged column's ink edges drift by up to 1.7px instead of ½px. */
+  --gfs: calc(var(--f) * var(--sy) * var(--cell));
+  --gkx: calc(var(--f) * var(--sy) * (var(--inkx) + var(--inkw) / 2) * var(--cell));
+  --gky: calc(var(--f) * var(--sy) * (var(--inky) + var(--inkh) / 2) * var(--cell));
   /* The region's own centre inside the element (R5).
 
      At rest the region *is* the box (stacked) or the fused region (fused), so its
@@ -870,36 +1040,65 @@ html[data-js="1"] .section-title {
      the element's layout size is that region. Its translate is the region's
      whole-cell origin. The ink is centred and stretched by the inner `.gl`,
      never by moving the hit target off the grid. */
-  /* D15.2: the compact stacked rows remove the shoulder/gap when grow or
-     reserve is off; with both on this is exactly `--ys`. */
-  --ysv: calc(
-    var(--ys0, var(--ys)) + (var(--ys) - var(--ys0, var(--ys))) * var(--stack-room)
+  /* D15.2 + D16.6: the compact stacked rows remove the shoulder/gap; a vertical
+     band's boxes additionally swap to their column position. */
+  --ys0v: var(--ys0, var(--ys));
+  --ysCompact: calc(var(--ys0v) + (var(--ys) - var(--ys0v)) * var(--stack-room));
+  --ysVja: calc(
+    var(--yja0, 0) + (var(--yja, var(--ys)) - var(--yja0, 0)) * var(--stack-room) + var(--shv, 0)
   );
-  --sx: calc((var(--rw) - 2 * (var(--fi) + var(--mw))) / (var(--inkw) * var(--f)));
-  --sy: calc((var(--rh) - 2 * (var(--fi) + var(--mv))) / (var(--inkh) * var(--f)));
+  /* D16.13: `--sh` is the cells this box is displaced by the growth of a hot row
+     above it (or its own row), so the enlarged text pushes its neighbours down
+     the stack instead of being drawn over them. It is a live expression of the
+     hot switches and the growth overflow, so the compact stack stays compact. */
+  --ysH: calc(
+    var(--ysCompact) * (1 - var(--vjaBox)) + var(--ysVja) * var(--vjaBox) + var(--sh, 0)
+  );
+  /* D16.13: the column steps to the right of a hot row's growth, the same push
+     on the horizontal axis. */
+  --xsH: calc(
+    var(--xs) * (1 - var(--vjaBox)) + (var(--xja, var(--xs)) + var(--vja-push, 0)) * var(--vjaBox)
+  );
+  --pushH: calc(var(--push, 0) * (1 - var(--vjaBox)));
+  --dyH: calc(var(--dy, var(--h)) * (1 - var(--vjaBox)) + var(--dyja, var(--h)) * var(--vjaBox));
+  /* D16.7: a vertical state is the same geometry with its axes swapped, so a
+     fused-vertical / stacked-horizontal block is just an interpolation of the
+     swap between the two states — no second layout engine. */
+  --swapE: calc(var(--vf, 0) + (var(--vs, 0) - var(--vf, 0)) * var(--st));
+  --rwE: calc(var(--rw) * (1 - var(--swapE)) + var(--rh) * var(--swapE));
+  --rhE: calc(var(--rh) * (1 - var(--swapE)) + var(--rw) * var(--swapE));
+  --sx: calc((var(--rwE) - 2 * (var(--fi) + var(--mw))) / (var(--inkw) * var(--f)));
+  --sy: calc((var(--rhE) - 2 * (var(--fi) + var(--mv))) / (var(--inkh) * var(--f)));
+  /* The horizontal layout, before the axis swap. `--hx`/`--hy` are the whole
+     §8.5 model (fused region, stacked box, hot push and growth); swapping them
+     is the entire vertical mode. */
+  --hx: calc(
+    var(--xf) + (var(--xsH) - var(--xf)) * var(--st) +
+      var(--pushH) * var(--st) * var(--grow) * (var(--hover-scale) - 1) * var(--hover-reserve) +
+      var(--fshift) * (1 - var(--st))
+  );
+  --hy: calc(
+    var(--yf) + (var(--ysH) - var(--yf)) * var(--st) +
+      (var(--dyH) - var(--rh)) * var(--st) * var(--grow)
+  );
   position: absolute;
   inset-block-start: 0;
   inset-inline-start: 0;
-  width: calc(var(--rw) * var(--cell));
-  height: calc(var(--rh) * var(--cell));
-  /* R3: a glyph may never paint outside its region. The clip is applied by the
-     generated *hot* rules, not here: at rest the fitted ink is allowed to sit on
-     the region's edge (the fixture measures that promise at `inset: 0`), while a
-     grown glyph's transformed layout box can overhang the page and must not
-     create a horizontal scrollbar. */
+  width: calc(var(--rwE) * var(--cell));
+  height: calc(var(--rhE) * var(--cell));
+  /* R3: a glyph may never paint outside its region. The fit already models that
+     (ink = region − inset − margin), and this clip is the guarantee at the
+     raster level: browser hinting can paint a few tenths of a pixel — at a high
+     stretch, a couple of pixels — beyond the modelled ink, which the anti-drift
+     margin absorbs for normal glyphs but not for a 1×3 merged letter stretched
+     3.2×. Clipping trims exactly that overflow and nothing else, at rest and
+     while hot, so the cell a neighbour reads as its own is never crossed. */
+  overflow: clip;
   font-size: calc(var(--f) * var(--cell));
   line-height: 0; /* the baseline placement .gl explains below */
   transform: translate(
-    calc(
-      (var(--xf) + (var(--xs) - var(--xf)) * var(--st) +
-        var(--push) * var(--st) * var(--grow) * (var(--hover-scale) - 1) * var(--hover-reserve) +
-        var(--fshift) * (1 - var(--st))) *
-        var(--cell)
-    ),
-    calc(
-      (var(--yf) + (var(--ysv) - var(--yf)) * var(--st) + (var(--dy) - var(--rh)) * var(--st) * var(--grow)) *
-        var(--cell)
-    )
+    calc((var(--hx) * (1 - var(--swapE)) + var(--hy) * var(--swapE)) * var(--cell)),
+    calc((var(--hy) * (1 - var(--swapE)) + var(--hx) * var(--swapE)) * var(--cell))
   );
   transition: transform var(--dur) var(--ease), width var(--dur) var(--ease),
     height var(--dur) var(--ease);
@@ -926,14 +1125,17 @@ html[data-js="1"] .section-title {
   display: block;
   white-space: pre;
   /* D11.6: the ink's centre is placed on the region's centre, then the glyph is
-     stretched about that centre (R3/R5). Because both the translate and the
-     scale happen here, the `.box` itself stays exactly on the cell grid. */
-  transform-origin: calc(var(--kx) * var(--cell)) calc(var(--ky) * var(--cell));
+     fitted about that centre (R3/R5). Because both the translate and the scale
+     happen here, the `.box` itself stays exactly on the cell grid. D16.12: the
+     vertical factor is in the font size, so only the horizontal remainder is a
+     scale — the painted ink box is the same one `--sx`/`--sy` describe. */
+  font-size: var(--gfs);
+  transform-origin: var(--gkx) var(--gky);
   transform: translate(
-      calc((var(--rw) / 2 - var(--kx)) * var(--cell)),
-      calc((var(--rh) / 2 - var(--ky)) * var(--cell))
+      calc(var(--rwE) / 2 * var(--cell) - var(--gkx)),
+      calc(var(--rhE) / 2 * var(--cell) - var(--gky))
     )
-    scale(var(--sx), var(--sy));
+    scale(calc(var(--sx) / var(--sy)), 1);
   /* D13.2/D13.5: the same stagger moves the stroke; fontscroll's inline family
      is deliberately not transitioned (it is a step, and it has to settle to CSS). */
   transition: transform var(--dur) var(--ease), -webkit-text-stroke-width var(--dur) var(--ease);
@@ -951,28 +1153,55 @@ html[data-js="1"] .section-title {
    it lands on empty grid: no glyph is ever drawn there. The visible marker stays
    inside the slot, so what is emphasised is what the line actually covers. */
 .line {
+  --bx: 0;
+  --lw: 1;
+  --lh: 1;
+  --by: 1;
+  --by0: 1;
+  --bxja: 0;
+  --byja: 1;
+  --byja0: 0;
+  --lwja: 1;
+  --lhja: 1;
+  --lhja0: var(--lhja);
+  /* D16.6: the vertical band's line is a block of columns, not a row. Its column
+     height follows the same room interpolation as the rows it is aligned with. */
+  --vjaLine: calc(var(--vja, 0) * var(--isVja, 0) * (1 - var(--vs, 0)));
+  --lwLine: calc(var(--lw) * (1 - var(--vjaLine)) + var(--lwja, var(--lw)) * var(--vjaLine));
+  /* D16.13: the hot row's own displacement, and the column's, so the hit area
+     keeps moving with the glyphs it covers. */
+  --lhVja: calc(var(--lhja0) + (var(--lhja) - var(--lhja0)) * var(--stack-room) + var(--shlv, 0));
+  --lhLine: calc(var(--lh) * (1 - var(--vjaLine)) + var(--lhVja) * var(--vjaLine));
+  --lxLine: calc(
+    var(--bx, 0) * (1 - var(--vjaLine)) + (var(--bxja, 0) + var(--vja-push, 0)) * var(--vjaLine)
+  );
+  --lyLine: calc(
+    (var(--by0) + (var(--by) - var(--by0)) * var(--stack-room) + var(--shl, 0)) * (1 - var(--vjaLine)) +
+      (var(--byja0) + (var(--byja) - var(--byja0)) * var(--stack-room) + var(--shlv, 0)) * var(--vjaLine)
+  );
+  /* D16.4: the button's extent is the line's own text, never the grid row. */
+  --lineX: calc(var(--lxLine) * (1 - var(--vs, 0)) + var(--lyLine) * var(--vs, 0));
+  --lineY: calc(var(--lyLine) * (1 - var(--vs, 0)) + var(--lxLine) * var(--vs, 0));
+  --lineW: calc(var(--lwLine) * (1 - var(--vs, 0)) + var(--lhLine) * var(--vs, 0));
+  --lineH: calc(var(--lhLine) * (1 - var(--vs, 0)) + var(--lwLine) * var(--vs, 0));
   position: absolute;
   inset-block-start: 0;
   inset-inline-start: 0;
-  /* D11.2: the clickable title row spans the whole grid, not just the glyph
-     block, so a section can be opened from anywhere on its row. */
-  width: calc(var(--grid-cols) * var(--cell));
-  height: calc(
-    (var(--rows0, var(--rows, 2)) + (var(--rows, 2) - var(--rows0, var(--rows, 2))) * var(--stack-room)) *
-      var(--cell)
-  );
+  width: calc(var(--lineW) * var(--cell));
+  height: calc(var(--lineH) * var(--cell));
   padding: 0;
   border: 0;
   background: none;
   color: inherit;
   font: inherit;
   cursor: pointer;
-  transform: translateY(
-    calc((var(--by0, var(--by, 1)) + (var(--by, 1) - var(--by0, var(--by, 1))) * var(--stack-room)) * var(--cell))
+  transform: translate(
+    calc(var(--lineX) * var(--cell)),
+    calc(var(--lineY) * var(--cell))
   );
   opacity: var(--st);
-  transition: opacity var(--dur) var(--ease), height var(--dur) var(--ease),
-    transform var(--dur) var(--ease);
+  transition: opacity var(--dur) var(--ease), width var(--dur) var(--ease),
+    height var(--dur) var(--ease), transform var(--dur) var(--ease);
 }
 
 .line::before {
@@ -981,6 +1210,20 @@ html[data-js="1"] .section-title {
   inset-block-start: 0;
   inset-inline: 0;
   height: var(--cell);
+}
+
+/* A vertical stacked block marks its selected line on the column's edge. */
+.widget[data-stacked-orientation="vertical"] .line::before,
+html[data-vertical-ja="1"] .line[data-vja="1"]::before {
+  inset-inline-end: auto;
+  inset-block-end: 0;
+  width: var(--cell);
+  height: auto;
+}
+
+.widget[data-stacked-orientation="vertical"] .line[aria-expanded="true"]::before,
+html[data-vertical-ja="1"] .line[data-vja="1"][aria-expanded="true"]::before {
+  box-shadow: inset 2px 0 0 0 currentColor;
 }
 
 /* Selected: never colour alone (§8.5) — a solid rule under the line, plus the
@@ -1035,15 +1278,12 @@ html[data-mode="single"] .widget {
   padding-block: var(--cell);
 }
 
-/* With JS on, the multilingual accordion is a set of collapsed one-row grids;
-   the closed pane is also hidden from assistive technology. The delay on
-   `visibility` keeps the closing pane visible until its height reaches zero. */
+/* D16.1: the multilingual accordion renders exactly one body. Every other
+   language's pane is `display: none` — not a `0fr` grid that keeps a box, a
+   padding edge or a scroll height — so it occupies no space and is out of the
+   accessibility tree. The chosen pane still opens from `0fr` (D15.7). */
 html[data-js="1"][data-mode="multi"] .body:not([data-active="true"]) {
-  grid-template-rows: 0fr;
-  opacity: 0;
-  visibility: hidden;
-  transition: grid-template-rows var(--dur) var(--ease), opacity var(--dur) var(--ease),
-    visibility 0s linear var(--dur);
+  display: none;
 }
 
 .body p + p {
@@ -1107,7 +1347,12 @@ html[data-js="1"][data-mode="multi"] .body:not([data-active="true"]) {
      everywhere in the flow so the next reader does not copy the wrong one. */
   box-shadow: inset 0 1px 0 var(--rule);
   font-size: var(--fs-small);
-  color: var(--fg-muted);
+  /* D18.5: the footer is the only text that passes under the plate (the four
+     colophon lines at 1280). The muted token read 2.4:1 over the colour print's
+     strongest cells, so the footer takes the body ink — 5.3:1 over the plate's
+     worst cell and 12.2:1 on paper, measured by `portrait.grid`. Its small size
+     is what keeps it a colophon, not a fainter grey. */
+  color: var(--fg);
 }
 
 .footer-name {
@@ -1115,11 +1360,28 @@ html[data-js="1"][data-mode="multi"] .body:not([data-active="true"]) {
   letter-spacing: 0.04em;
 }
 
-/* D12.3 — the lowercase colophon. `meta.tagline` is rendered exactly once, here:
-   a caption under the name, never uppercased, in the body face. */
+/* D12.3 + D16.11 — the lowercase colophon. The multilingual view prints one
+   inert line per language (with its short code), so the tagline is readable in
+   every language without pretending to be a title widget; `?lang=xx` leaves only
+   the chosen line through the generated `.ml` rules. */
 .footer-tagline {
+  display: flex;
+  gap: calc(var(--cell) * 0.5);
   padding-block-start: var(--cell);
   text-transform: lowercase;
+  pointer-events: none;
+}
+
+.footer-tagline + .footer-tagline {
+  padding-block-start: 0;
+}
+
+.footer-lang {
+  flex: none;
+  min-inline-size: calc(var(--cell) * 1.5);
+  color: inherit; /* D18.5: same ink as the colophon it labels */
+  font-size: var(--fs-small);
+  font-variant-numeric: tabular-nums;
 }
 
 .footer-links {
@@ -1216,10 +1478,13 @@ html[data-js="1"] .dialog:not(.settings-dialog) .dlg-inner[data-active="false"] 
   line-height: var(--cell);
 }
 
+/* D16.9: the panel's one scroll container. The font list lives inside it, so no
+   control ever has a scrollbar of its own (the old `.font-list` did). */
 .dlg-content {
   max-height: min(60vh, calc(var(--cell) * 20));
   overflow: auto;
   scroll-padding-block: var(--cell);
+  overscroll-behavior: contain;
 }
 
 .dlg-content p + p {
@@ -1339,49 +1604,39 @@ html[data-js="1"] .dialog:not(.settings-dialog) .dlg-inner[data-active="false"] 
   font-size: var(--fs-small);
 }
 
-/* D13.5: the font list. A native `<details>` so it is closed by default, a
-   checkbox per family (all checked on first run), and its own scroll container
-   so a machine with 300 fonts cannot make the dialog taller than the viewport. */
-.font-picker {
-  margin-block-start: 0;
+/* D16.9: a sub-group of the panel (the font list, the design font). One cell of
+   indent and a drawn rule make its affiliation visible without a second
+   scrolling surface. */
+.setting-sub {
   padding-inline-start: var(--cell);
+  box-shadow: inset 1px 0 0 var(--rule);
 }
 
-.font-picker > summary {
-  display: flex;
-  align-items: center;
-  min-height: calc(var(--cell) * 2);
-  cursor: pointer;
-  list-style: none;
-}
-
-.font-picker > summary::-webkit-details-marker {
-  display: none;
-}
-
-.font-picker > summary::before {
-  content: "△";
-  display: inline-block;
-  width: calc(var(--cell) * 1.5);
+.setting-caption {
+  display: block;
+  font-size: var(--fs-small);
+  /* R9/D12.4: a whole cell, never a half — a caption is a row like any other. */
+  line-height: var(--cell);
   color: var(--fg-muted);
 }
 
-.font-picker[open] > summary::before {
-  content: "▽";
+.font-picker {
+  padding-inline-start: var(--cell);
 }
 
+/* D16.9: no nested scrollbar. `.dlg-content` is the panel's only scroller, so
+   the font list is a plain list that grows the panel instead of trapping the
+   wheel (and a machine with hundreds of fonts still scrolls the whole panel). */
 .font-list {
-  max-height: calc(var(--cell) * 8);
-  overflow: auto;
-  overscroll-behavior: contain;
-  padding-block: var(--cell);
+  padding-block-end: var(--cell);
 }
 
 .font-list label {
   display: flex;
   align-items: center;
   gap: var(--cell);
-  min-height: calc(var(--cell) * 1.5);
+  /* R9/D12.4: whole-cell rows; 2 cells also keeps the 24px target at the floor. */
+  min-height: calc(var(--cell) * 2);
   cursor: pointer;
 }
 
@@ -1398,6 +1653,12 @@ html[data-js="1"] .dialog:not(.settings-dialog) .dlg-inner[data-active="false"] 
   line-height: var(--cell);
   color: var(--fg-muted);
   padding-block-end: 0;
+}
+
+.setting-inline {
+  display: flex;
+  align-items: center;
+  min-height: calc(var(--cell) * 2);
 }
 
 .text-button {
@@ -1435,14 +1696,67 @@ html[data-js="1"] .dialog:not(.settings-dialog) .dlg-inner[data-active="false"] 
   display: inline;
 }
 
+/* D17.4: the separator itself is content (`meta.ui.sepLabel`) and is emitted by
+   the generator; only its colour lives here. */
 .ui-label + .ui-label::before {
-  content: " / ";
   color: var(--fg-muted);
 }
 
 html[data-mode="multi"] .ui-label-group {
   pointer-events: none;
   -webkit-text-stroke-width: 0;
+}
+
+/* ============================================================================
+   Content tokens (D17.1–D17.3, §6.9) — time-of-day text and the markee
+   ========================================================================= */
+
+/* A time token displays exactly one alternative: the first one is the static
+   (no-JS) text until the runtime resolves the reader's clock, after which the
+   option whose interval contains that minute is the only visible one. */
+.tok-time > .tok-alt {
+  display: none;
+}
+
+.tok-time:not([data-ready]) > .tok-alt:first-child,
+.tok-time[data-ready] > .tok-alt[data-on] {
+  display: inline;
+}
+
+/* The markee reserves the space of its **widest and tallest** alternative: every
+   option sits in the same cell of one inline grid, so the box is the maximum of
+   the set in both axes and swapping the text cannot reflow the sentence around
+   it. Different character counts are absorbed here — the only honest way to give
+   alternatives "the same space" when the strings differ. */
+.tok-markee {
+  display: inline-grid;
+  justify-items: start;
+  align-items: start;
+  vertical-align: baseline;
+  max-inline-size: 100%;
+  --tok-dur: var(--dur);
+  --tok-shift: 0.55em;
+}
+
+.tok-markee > .tok-alt {
+  grid-area: 1 / 1;
+  min-inline-size: 0;
+  opacity: 0;
+  transform: translateX(var(--tok-shift));
+  transition: opacity var(--tok-dur) var(--ease), transform var(--tok-dur) var(--ease);
+}
+
+.tok-markee:not([data-ready]) > .tok-alt:first-child,
+.tok-markee > .tok-alt.is-on {
+  opacity: 1;
+  transform: none;
+}
+
+/* The outgoing text leaves to the left as the incoming one arrives from the
+   right: one direction of travel, both halves of the same swap. */
+.tok-markee > .tok-alt.is-out {
+  opacity: 0;
+  transform: translateX(calc(-1 * var(--tok-shift)));
 }
 
 /* D15.1: in the fused settings view the label text is display only. The row is
@@ -1615,8 +1929,8 @@ html[data-debug="all"] .gl::before {
 html[data-debug="all"] .box::before {
   inset-block-start: calc((var(--fi) + var(--mv)) * var(--cell));
   inset-inline-start: calc((var(--fi) + var(--mw)) * var(--cell));
-  width: calc((var(--rw) - 2 * (var(--fi) + var(--mw))) * var(--cell));
-  height: calc((var(--rh) - 2 * (var(--fi) + var(--mv))) * var(--cell));
+  width: calc((var(--rwE) - 2 * (var(--fi) + var(--mw))) * var(--cell));
+  height: calc((var(--rhE) - 2 * (var(--fi) + var(--mv))) * var(--cell));
   outline: 1px solid rgba(255, 0, 128, 0.9);
 }
 
